@@ -1,0 +1,3 @@
+# Machine-local ini (pg_query.so path). Written by php/setup.sh.
+*
+!.gitignore

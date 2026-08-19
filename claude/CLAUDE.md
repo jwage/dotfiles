@@ -10,8 +10,23 @@ repo** (`realpath <path>` starts with `$HOME/Repositories/dotfiles`).
 If it is, commit (and push) the change there once you've confirmed the
 change works — don't leave the dotfiles repo behind live config edits.
 
-`install.sh` skips Hyprland/Omarchy/bashrc/XCompose on macOS and skips
-`zsh/zshrc` on Linux. Do not add a Linux-only path to the shared link list.
+`install.sh` skips Hyprland/Omarchy/bashrc/XCompose on macOS. Shared files
+(including `zsh/zshrc`) install on both OS. Do not add a Linux-only path
+to the shared link list.
+
+## PHP
+
+Host PHP for Composer and phpunit is **not** installed by `install.sh`.
+Follow [`php/README.md`](../php/README.md) and run `php/setup.sh`.
+
+- PHP 8.5.x via `pacman` / `brew`, never mise.
+- Shared `php/cli.ini`: `memory_limit = -1` only. **Never** add
+  `extension=` there (breaks Homebrew PHP with "already loaded").
+- Arch enables modules in `php/linux/extensions.ini`. `pg_query` is
+  gitignored `php/local/` after PIE, using `${HOME}` — no hardcoded
+  `/home/jwage/...` paths.
+- If `php --ini` does not list `dotfiles/php/cli.ini`, the process skipped
+  zshrc; export `PHP_INI_SCAN_DIR` as in `php/README.md` before Composer.
 
 Cursor editor settings live in `cursor/` in this same repo (`settings.json`,
 `keybindings.json`, `extensions.txt`). Live paths are

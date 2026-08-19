@@ -21,19 +21,22 @@ Shared (macOS + Linux):
 | `cursor/keybindings.json` | Cursor keybindings: agent/sidebar chords (`cmd` + `ctrl`) plus Linux `Ctrl+C` copies a terminal selection |
 | `cursor/extensions.txt` | Cursor extension IDs (`install.sh` installs them; UI names are in comments — Twig is `whatwedo.twig`) |
 | `claude/CLAUDE.md` | Global Claude Code instructions (incl. keeping this repo in sync) |
+| `AGENTS.md` | Cursor/agent entry: PHP setup points at `php/README.md` |
 | `git/config` | Git aliases and behavior (not credentials — see below) |
 | `gh/config.yml` | GitHub CLI preferences |
 | `mise/config.toml` | Tool version manifest |
 | `ssh/config` | Host aliases |
-| `shell/env.sh` | MCP env file, global Composer PATH, PHP CLI ini scan dir, `command_not_found_handler`/`handle` fallback to local `bin`/`vendor/bin` |
+| `shell/env.sh` | MCP env file, `~/.local/bin` + Composer PATH, OS-aware PHP CLI ini scan dir, `command_not_found_handler`/`handle` fallback to local `bin`/`vendor/bin` |
 | `zsh/zshrc` | Shared zshrc: Omarchy bootstrap (no-op on macOS) + `shell/env.sh` + oh-my-zsh plugins + Starship prompt |
 | `starship/starship.toml` | Omarchy's stock Starship prompt (directory + branch + `❯`) so macOS matches |
-| `php/cli.ini` | PHP CLI-only overrides (`memory_limit = -1`); loaded via `PHP_INI_SCAN_DIR` in `shell/env.sh`, not the system php.ini — see below |
+| `php/cli.ini` | Shared PHP CLI overrides (`memory_limit = -1` only) |
+| `php/setup.sh` / `php/README.md` | Host PHP 8.5 + extensions for Composer/phpunit (agents: start at `php/README.md`) |
 
 Linux / Omarchy only:
 
 | Path | What it is |
 |---|---|
+| `php/linux/` | Arch-only `extension=` enables (CLI); macOS never scans this dir |
 | `hypr/*.lua` | Hyprland: keybinds, input, per-app workspaces, autostart, look & feel |
 | `omarchy/shell.json` | Bar widget layout |
 | `omarchy/defaults/agent` | Default coding agent |
@@ -60,9 +63,9 @@ Linux / Omarchy only:
   tracked in `starship/starship.toml` so this Mac does not keep Oh My Zsh's
   `robbyrussell` theme.
 - Cursor history, workspace storage, MCP secrets, crash-reporter IDs, and
-  machine-local PHP binary paths (`/usr/local/bin/php` vs `/usr/bin/php`) —
-  those last ones stay off the tracked file so both machines use `php` from
-  PATH
+  machine-local PHP binary paths (`/usr/local/bin/php` vs `/usr/bin/php`) and
+  `php/local/*.ini` (PIE-built `pg_query.so`) — binaries stay off the tracked
+  files so both machines use `php` from PATH
 
 ## Install
 
@@ -111,18 +114,23 @@ e.g. publisher/name `whatwedo`/`twig` and `gerane`/`theme-sunburst`.
 
 ### PHP
 
-PHP itself is installed via each OS's own package manager (`pacman` on
-Omarchy, `brew` on macOS) — not mise — so you keep each OS's native
-extensions (Xdebug, etc.) instead of a from-source mise build. Keep both on
-the same major.minor version manually (`php --version`); this repo doesn't
-enforce it.
+**Agents:** follow [`php/README.md`](php/README.md) and run `php/setup.sh`.
+Do not put `extension=` in the shared `php/cli.ini`.
 
-What *is* shared is CLI-only settings (`php/cli.ini` — currently just
-`memory_limit = -1`, since phpunit/Composer on a large codebase shouldn't
-hit a web-request-sized default). It's loaded via `PHP_INI_SCAN_DIR` in
-`shell/env.sh`, not by editing the system php.ini: that variable is only
-ever set in an interactive shell, so php-fpm/Apache workers (started by
-systemd/launchd, not a shell) never see it and keep their normal limits.
+PHP is installed via each OS's package manager (`pacman` on Omarchy, `brew`
+on macOS) — not mise — so you keep native extensions (Xdebug, etc.) instead
+of a from-source mise build. Keep both machines on PHP 8.5.x manually
+(`php --version`); this repo does not enforce it. `install.sh` does not
+install PHP.
+
+Shared CLI settings live in `php/cli.ini` (`memory_limit = -1` only, so
+phpunit/Composer on a large codebase do not hit a web-request-sized
+default). Arch `extension=` lines live in `php/linux/` so Homebrew PHP is
+not double-loaded. `pg_query` is enabled from gitignored `php/local/`
+after `setup.sh` builds the `.so`. All of that is loaded via
+`PHP_INI_SCAN_DIR` in `shell/env.sh`, not by editing the system php.ini:
+that variable is only set from an interactive shell, so php-fpm/Apache
+(systemd/launchd) never see it.
 
 `zsh/zshrc` expects zsh, oh-my-zsh, Starship, and mise. `install.sh` only
 symlinks config; on Omarchy those tools are already installed. On macOS:

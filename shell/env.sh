@@ -1,16 +1,26 @@
 # Sourced from bash/bashrc (Linux) and zsh/zshrc (macOS).
-# Keep this file free of OS-specific paths.
+# Keep this file free of machine-specific absolute paths (no /usr/bin/php
+# vs /opt/homebrew/bin/php). OS branching for PHP_INI_SCAN_DIR is OK.
 
 # MCP API keys for Cursor / Claude Code (host-only; not in any repo)
 [[ -r "$HOME/.config/mcp-secrets.env" ]] && source "$HOME/.config/mcp-secrets.env"
 
-export PATH="$HOME/.config/composer/vendor/bin:$PATH"
+export PATH="$HOME/.local/bin:$HOME/.config/composer/vendor/bin:$PATH"
 
-# PHP CLI-only overrides (memory_limit=-1; see php/cli.ini). Trailing ':'
-# makes PHP scan its normal distro conf.d too (Xdebug, etc.), not just this
-# one -- and since php-fpm/Apache are started by systemd/launchd rather than
-# an interactive shell, they never see this var, so it can't affect them.
-[[ -n "$DOTFILES" ]] && export PHP_INI_SCAN_DIR="$DOTFILES/php:"
+# PHP CLI-only overrides (see php/README.md). Trailing ':' makes PHP also
+# scan its normal distro conf.d (Xdebug, brew pecl, etc.). php-fpm/Apache
+# are started by systemd/launchd, not this shell, so they never see this.
+if [[ -n "$DOTFILES" ]]; then
+  _php_ini_scan="$DOTFILES/php"
+  if [[ "$(uname -s)" == "Linux" ]]; then
+    _php_ini_scan="$_php_ini_scan:$DOTFILES/php/linux"
+  fi
+  if [[ -d "$DOTFILES/php/local" ]]; then
+    _php_ini_scan="$_php_ini_scan:$DOTFILES/php/local"
+  fi
+  export PHP_INI_SCAN_DIR="${_php_ini_scan}:"
+  unset _php_ini_scan
+fi
 
 # Run project-local Composer/PHP tools (phpunit, phpcs, phpcbf, ...) by bare
 # name from a repo root, e.g. `phpunit` instead of `vendor/bin/phpunit`.

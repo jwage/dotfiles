@@ -174,3 +174,5 @@ if [[ -n "$CURSOR_BIN" ]]; then
 else
   echo "skip    cursor extensions (cursor CLI not found — install Cursor, then re-run)"
 fi
+
+echo "PHP:     run $REPO_DIR/php/setup.sh for host PHP + extensions (php/README.md)"
