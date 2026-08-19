@@ -1,8 +1,9 @@
 # Omarchy environment (OMARCHY_PATH + PATH), needed even for non-interactive shells
 [[ -r /usr/share/omarchy/default/bash/env-bootstrap ]] && source /usr/share/omarchy/default/bash/env-bootstrap
 
-# MCP API keys for Cursor / Claude Code (host-only; not in any repo)
-[[ -r "$HOME/.config/mcp-secrets.env" ]] && source "$HOME/.config/mcp-secrets.env"
+DOTFILES="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")/.." && pwd)"
+# shellcheck source=../shell/env.sh
+source "$DOTFILES/shell/env.sh"
 
 # If not running interactively, don't do anything else (leave this above the rc source)
 [[ $- != *i* ]] && return
@@ -15,4 +16,3 @@ source "$OMARCHY_PATH/default/bash/rc"
 #
 # Make an alias for invoking commands you use constantly
 # alias p='python'
-export PATH="$HOME/.config/composer/vendor/bin:$PATH"

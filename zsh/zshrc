@@ -1,0 +1,5 @@
+# Linked to ~/.zshrc on macOS. Linux uses bash/bashrc instead.
+
+DOTFILES="$(cd "$(dirname "$(realpath "$HOME/.zshrc")")/.." && pwd)"
+# shellcheck source=../shell/env.sh
+source "$DOTFILES/shell/env.sh"

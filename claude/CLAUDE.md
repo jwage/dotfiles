@@ -6,9 +6,12 @@ place via its `install.sh` — see that repo's README for what's tracked and
 why.
 
 **Whenever you edit a config file, check whether it's a symlink into that
-repo** (`readlink -f <path>` starts with `/home/jwage/Repositories/dotfiles`).
+repo** (`realpath <path>` starts with `$HOME/Repositories/dotfiles`).
 If it is, commit (and push) the change there once you've confirmed the
 change works — don't leave the dotfiles repo behind live config edits.
+
+`install.sh` skips Hyprland/Omarchy/bashrc/XCompose on macOS and skips
+`zsh/zshrc` on Linux. Do not add a Linux-only path to the shared link list.
 
 Cursor editor settings live in `cursor/` in this same repo (`settings.json`,
 `keybindings.json`, `extensions.txt`). Live paths are
