@@ -130,3 +130,10 @@ o.bind("SUPER + RETURN", "Send message (Cmd+Return, like macOS Slack)", function
     hl.dispatch(hl.dsp.exec_cmd("omarchy-launch-terminal"))
   end
 end)
+
+-- SUPER+SHIFT+M was "Music" (the default web-app player) -- the
+-- quickshell.spotify plugin (Omarchy Spotify) replaces that with its own
+-- lighter, theme-matching player. See omarchy/plugins/quickshell.spotify/.
+hl.unbind("SUPER + SHIFT + M")
+o.bind("SUPER + SHIFT + M", "Omarchy Spotify",
+  "omarchy shell -q quickshell.spotify.player togglePlayer")
