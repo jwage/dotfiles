@@ -110,3 +110,19 @@ o.bind("SUPER + P", "Cmd+P passthrough", send_ctrl_shortcut_once("P"))
 for _, key in ipairs({ "A", "B", "D", "E", "H", "I", "M", "N", "Q", "U", "Y", "Z" }) do
   o.bind("SUPER + " .. key, "Cmd+" .. key .. " passthrough", send_ctrl_shortcut_once(key))
 end
+
+local function active_window_is_slack()
+  local window = hl.get_active_window()
+  return window ~= nil and window.class == "slack"
+end
+
+-- Slack sends with Ctrl+Return on Linux (its own preference, not something
+-- Slack lets you rebind to Super/Cmd there), while macOS Slack uses Cmd+Return.
+-- Forward Super+Return as Ctrl+Return, but only while Slack is focused --
+-- nothing else claims Super+Return, but without this guard it would poke
+-- whatever's in Slack's compose box even when some other app is focused.
+o.bind("SUPER + RETURN", "Send message (Cmd+Return, like macOS Slack)", function()
+  if active_window_is_slack() then
+    send_ctrl_shortcut_once("Return")()
+  end
+end)
