@@ -88,7 +88,7 @@ hl.device({
   name = "jonathan’s-magic-mouse",
   accel_profile = "flat",
   sensitivity = -0.5,
-  scroll_factor = 1.0,
+  scroll_factor = 0.4,
 })
 
 -- App-specific touchpad scroll speeds.

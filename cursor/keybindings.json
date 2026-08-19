@@ -8,6 +8,16 @@
         "when": "terminalFocus && terminalTextSelected"
     },
     {
+        "key": "ctrl+v",
+        "command": "workbench.action.terminal.paste",
+        "when": "terminalFocus"
+    },
+    {
+        "key": "cmd+v",
+        "command": "workbench.action.terminal.paste",
+        "when": "terminalFocus"
+    },
+    {
         "key": "cmd+i",
         "command": "composerMode.agent"
     },
