@@ -18,6 +18,7 @@ added, so this repo is the *delta*, not a full config mirror.
 | `omarchy/plugins/jwage.battery-sleep/` | Suspends after idle on battery only; never sleeps on AC |
 | `bash/bashrc` | Shell PATH/env additions |
 | `XCompose` | Compose key sequences |
+| `claude/CLAUDE.md` | Global Claude Code instructions (incl. keeping this repo in sync) |
 | `git/config` | Git aliases and behavior (not credentials — see below) |
 | `gh/config.yml` | GitHub CLI preferences |
 | `mise/config.toml` | Tool version manifest |

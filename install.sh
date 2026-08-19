@@ -25,6 +25,7 @@ LINKS=(
   "omarchy/plugins/jwage.battery-sleep/Service.qml:$HOME/.config/omarchy/plugins/jwage.battery-sleep/Service.qml"
   "bash/bashrc:$HOME/.bashrc"
   "XCompose:$HOME/.XCompose"
+  "claude/CLAUDE.md:$HOME/.claude/CLAUDE.md"
   "gh/config.yml:$HOME/.config/gh/config.yml"
   "mise/config.toml:$HOME/.config/mise/config.toml"
   "ssh/config:$HOME/.ssh/config"
