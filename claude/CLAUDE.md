@@ -10,6 +10,12 @@ repo** (`readlink -f <path>` starts with `/home/jwage/Repositories/dotfiles`).
 If it is, commit (and push) the change there once you've confirmed the
 change works — don't leave the dotfiles repo behind live config edits.
 
+Cursor editor settings live in `cursor/` in this same repo (`settings.json`,
+`keybindings.json`, `extensions.txt`). Live paths are
+`~/Library/Application Support/Cursor/User/` on macOS and
+`~/.config/Cursor/User/` on Linux. Treat edits to those live files the same
+way: if they are symlinks into this repo, commit the change here.
+
 **If you create a new Omarchy/Hyprland customization that isn't tracked yet**
 (a new plugin, a new hypr config file, etc.), bring it into the dotfiles repo
 the same way the existing files are: copy it in, symlink the live path back

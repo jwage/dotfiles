@@ -10,8 +10,16 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  CURSOR_USER="$HOME/Library/Application Support/Cursor/User"
+else
+  CURSOR_USER="$HOME/.config/Cursor/User"
+fi
+
 # repo path -> destination path
 LINKS=(
+  "cursor/settings.json:$CURSOR_USER/settings.json"
+  "cursor/keybindings.json:$CURSOR_USER/keybindings.json"
   "hypr/bindings.lua:$HOME/.config/hypr/bindings.lua"
   "hypr/input.lua:$HOME/.config/hypr/input.lua"
   "hypr/hyprland.lua:$HOME/.config/hypr/hyprland.lua"
@@ -29,14 +37,13 @@ LINKS=(
   "gh/config.yml:$HOME/.config/gh/config.yml"
   "mise/config.toml:$HOME/.config/mise/config.toml"
   "ssh/config:$HOME/.ssh/config"
-  "cursor/keybindings.json:$HOME/.config/Cursor/User/keybindings.json"
 )
 
 for entry in "${LINKS[@]}"; do
   src="$REPO_DIR/${entry%%:*}"
   dest="${entry#*:}"
 
-  if [[ -L "$dest" && "$(readlink -f "$dest")" == "$(readlink -f "$src")" ]]; then
+  if [[ -L "$dest" && "$(realpath "$dest")" == "$(realpath "$src")" ]]; then
     echo "ok      $dest"
     continue
   fi
@@ -74,4 +81,24 @@ EOF
   echo "wrote   $GIT_CONFIG (includes $REPO_DIR/git/config)"
 else
   echo "ok      $GIT_CONFIG"
+fi
+
+# Extensions are installed by ID, not symlinked. Cursor itself must already
+# be on PATH (`cursor`). Safe to re-run: already-installed extensions are
+# left as-is.
+CURSOR_BIN=""
+if command -v cursor >/dev/null 2>&1; then
+  CURSOR_BIN="cursor"
+elif [[ -x "/Applications/Cursor.app/Contents/Resources/app/bin/cursor" ]]; then
+  CURSOR_BIN="/Applications/Cursor.app/Contents/Resources/app/bin/cursor"
+fi
+
+if [[ -n "$CURSOR_BIN" ]]; then
+  while IFS= read -r extension || [[ -n "$extension" ]]; do
+    [[ -z "$extension" || "$extension" == \#* ]] && continue
+    echo "ext     $extension"
+    "$CURSOR_BIN" --install-extension "$extension" >/dev/null
+  done < "$REPO_DIR/cursor/extensions.txt"
+else
+  echo "skip    cursor extensions (cursor CLI not found)"
 fi

@@ -1,0 +1,17 @@
+adpyke.codesnap
+anthropic.claude-code
+anysphere.remote-ssh
+bmewburn.vscode-intelephense-client
+bradlc.vscode-tailwindcss
+devsense.composer-php-vscode
+devsense.intelli-php-vscode
+devsense.phptools-vscode
+devsense.profiler-php-vscode
+ecmel.vscode-html-css
+gerane.theme-sunburst
+github.vscode-github-actions
+github.vscode-pull-request-github
+hashicorp.terraform
+mehedidracula.php-namespace-resolver
+valeryanm.vscode-phpsab
+whatwedo.twig

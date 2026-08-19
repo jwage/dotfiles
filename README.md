@@ -1,7 +1,8 @@
 # dotfiles
 
-Personal config for my [Omarchy](https://omarchy.org) (Arch + Hyprland) setup —
-tracked so a distro switch or an Omarchy reset doesn't mean starting over.
+Personal config for my [Omarchy](https://omarchy.org) (Arch + Hyprland) setup
+and the Cursor editor settings shared with this Mac — tracked so a distro
+switch or an Omarchy reset doesn't mean starting over.
 
 Only actual customizations are tracked here, not Omarchy's stock defaults.
 Each file was diffed against Omarchy's shipped default/skel before being
@@ -23,7 +24,9 @@ added, so this repo is the *delta*, not a full config mirror.
 | `gh/config.yml` | GitHub CLI preferences |
 | `mise/config.toml` | Tool version manifest |
 | `ssh/config` | Host aliases |
-| `cursor/keybindings.json` | Re-adds macOS's `Cmd+C`-copies-terminal-selection behavior on Linux (Cursor's own default binds that to `Ctrl+Shift+C` there, so plain `Ctrl+C` — what Omarchy's Super+C forwards — doesn't copy) |
+| `cursor/settings.json` | Cursor editor settings (theme, PHP tooling, Composer UI) |
+| `cursor/keybindings.json` | Cursor keybindings shared across macOS and Linux: agent/sidebar chords plus Linux `Ctrl+C` copies a terminal selection (Cursor's Linux default is `Ctrl+Shift+C`, so Omarchy's Super+C forwarding would not copy otherwise) |
+| `cursor/extensions.txt` | Cursor extension IDs installed by `install.sh` |
 
 ## What's deliberately excluded
 
@@ -34,6 +37,10 @@ added, so this repo is the *delta*, not a full config mirror.
 - Terminal emulator configs (alacritty/foot/ghostty/kitty), tmux, btop,
   starship — verified identical to Omarchy's stock skel, so a fresh install
   already gives you these
+- Cursor history, workspace storage, MCP secrets, crash-reporter IDs, and
+  machine-local PHP binary paths (`/usr/local/bin/php` vs `/usr/bin/php`) —
+  those last ones stay off the tracked file so both machines use `php` from
+  PATH
 
 ## Install
 
@@ -67,3 +74,9 @@ gh auth setup-git
 ```
 
 to populate that local credential helper.
+
+Cursor settings land in `~/Library/Application Support/Cursor/User` on macOS
+and `~/.config/Cursor/User` on Linux. `install.sh` picks the right path from
+`uname`. Install Cursor on the machine first so the extension step can run;
+if the `cursor` CLI is missing, settings still get linked and extensions
+are skipped.

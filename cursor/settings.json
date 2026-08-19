@@ -1,0 +1,80 @@
+{
+    "workbench.colorTheme": "Sunburst",
+    "editor.fontSize": 16,
+    "workbench.iconTheme": null,
+    "workbench.colorCustomizations": {
+        "statusBar.background": "#1A1A1A",
+        "statusBar.noFolderBackground": "#212121",
+        "statusBar.debuggingBackground": "#263238"
+    },
+    "namespaceResolver.sortAlphabetically": true,
+    "psalm.hideStatusMessageWhenRunning": false,
+    "search.useIgnoreFiles": false,
+    "extensions.ignoreRecommendations": true,
+    "phpcs.errorSeverity": 0,
+    "phpcs.executablePath": "vendor/bin/phpcs",
+    "phpcs.lintOnOpen": false,
+    "phpcs.warningSeverity": 0,
+    "[php]": {
+        "editor.defaultFormatter": "valeryanm.vscode-phpsab"
+    },
+    "workbench.startupEditor": "none",
+    "psalm.analyzedFileExtensions": [
+        {
+            "scheme": "file",
+            "language": "php"
+        },
+        {
+            "scheme": "untitled",
+            "language": "php"
+        }
+    ],
+    "phpsab.allowedAutoRulesets": [
+        ".phpcs.xml",
+        ".phpcs.xml.dist",
+        "phpcs.xml",
+        "phpcs.xml.dist",
+        "phpcs.ruleset.xml",
+        "ruleset.xml"
+    ],
+    "editor.inlineSuggest.enabled": true,
+    "githubPullRequests.pullBranch": "never",
+    "editor.codeActionsOnSave": {},
+    "explorer.confirmDragAndDrop": false,
+    "files.insertFinalNewline": true,
+    "files.trimFinalNewlines": true,
+    "editor.copyWithSyntaxHighlighting": false,
+    "window.zoomLevel": 1,
+    "phpsab.executablePathCBF": "vendor/bin/phpcbf",
+    "phpsab.executablePathCS": "vendor/bin/phpcs",
+    "[html]": {
+        "editor.suggest.insertMode": "replace",
+        "editor.wordWrap": "on"
+    },
+    "[twig]": {
+        "editor.wordWrap": "on"
+    },
+    "psalm.enableVerbose": true,
+    "psalm.psalmScriptPath": "vendor/bin/psalm",
+    "phpunit.phpunit": "vendor/bin/phpunit",
+    "tailwindCSS.colorDecorators": false,
+    "php.completion.docblock": false,
+    "codesnap.backgroundColor": "",
+    "codesnap.boxShadow": "",
+    "codesnap.containerPadding": "0",
+    "codesnap.transparentBackground": true,
+    "window.commandCenter": true,
+    "cursor.cpp.disabledLanguages": [
+        "plaintext"
+    ],
+    "claudeCode.preferredLocation": "panel",
+    "workbench.editor.enablePreview": false,
+    "terminal.integrated.defaultProfile.osx": "zsh",
+    "terminal.integrated.defaultProfile.linux": "bash",
+    "editor.accessibilitySupport": "off",
+    "accessibility.signalOptions.volume": 0,
+    "claudeCode.selectedModel": "default",
+    "cursor.composer.usageSummaryDisplay": "always",
+    "window.autoDetectColorScheme": false,
+    "git.detectWorktrees": true
+}
