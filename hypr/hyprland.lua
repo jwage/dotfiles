@@ -27,11 +27,3 @@ require("default.hypr.toggles")
 
 -- Add any other personal Hyprland configuration below.
 -- o.window("qemu", { workspace = "5" })
-
--- Consistent per-app workspace assignment: opening one of these apps moves
--- it (and switches focus) to its assigned workspace, so the layout stays
--- the same across logins/relaunches instead of wherever it happened to open.
-o.window("^cursor$", { workspace = "1" })
-o.window("^org.omarchy.agent$", { workspace = "3" }) -- Claude Code sessions
-o.window("^slack$", { workspace = "4" })
-o.window("^signal$", { workspace = "5" })
