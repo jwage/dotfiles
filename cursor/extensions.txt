@@ -1,17 +1,31 @@
-adpyke.codesnap
-anthropic.claude-code
-anysphere.remote-ssh
+# Cursor marketplace IDs. Labels in the UI are in the comments.
+# Re-run install.sh after Cursor is installed so these land on a new machine.
+
+# PHP
 bmewburn.vscode-intelephense-client
-bradlc.vscode-tailwindcss
 devsense.composer-php-vscode
 devsense.intelli-php-vscode
 devsense.phptools-vscode
 devsense.profiler-php-vscode
+mehedidracula.php-namespace-resolver
+valeryanm.vscode-phpsab
+
+# Twig (UI name: "Twig")
+whatwedo.twig
+
+# CSS / HTML
+bradlc.vscode-tailwindcss
 ecmel.vscode-html-css
+
+# Theme / snapshots
 gerane.theme-sunburst
+adpyke.codesnap
+
+# GitHub / infra
 github.vscode-github-actions
 github.vscode-pull-request-github
 hashicorp.terraform
-mehedidracula.php-namespace-resolver
-valeryanm.vscode-phpsab
-whatwedo.twig
+anysphere.remote-ssh
+
+# Other editors
+anthropic.claude-code

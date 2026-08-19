@@ -112,21 +112,39 @@ else
 fi
 
 # Extensions are installed by ID, not symlinked. Cursor itself must already
-# be on PATH (`cursor`). Safe to re-run: already-installed extensions are
-# left as-is.
+# be installed; `install.sh` looks for the `cursor` CLI. Safe to re-run:
+# already-installed extensions are left as-is. Failures are printed (do not
+# hide them) so a missing Twig/PHP extension on a new machine is obvious.
 CURSOR_BIN=""
 if command -v cursor >/dev/null 2>&1; then
-  CURSOR_BIN="cursor"
-elif [[ -x "/Applications/Cursor.app/Contents/Resources/app/bin/cursor" ]]; then
-  CURSOR_BIN="/Applications/Cursor.app/Contents/Resources/app/bin/cursor"
+  CURSOR_BIN="$(command -v cursor)"
+else
+  for candidate in \
+    "/Applications/Cursor.app/Contents/Resources/app/bin/cursor" \
+    "$HOME/.local/share/cursor/bin/cursor" \
+    "$HOME/.local/bin/cursor" \
+    "$HOME/.cursor/bin/cursor" \
+    "/usr/bin/cursor" \
+    "/opt/cursor/cursor" \
+    "/opt/Cursor/cursor"
+  do
+    if [[ -x "$candidate" ]]; then
+      CURSOR_BIN="$candidate"
+      break
+    fi
+  done
 fi
 
 if [[ -n "$CURSOR_BIN" ]]; then
+  echo "cursor  $CURSOR_BIN"
   while IFS= read -r extension || [[ -n "$extension" ]]; do
     [[ -z "$extension" || "$extension" == \#* ]] && continue
-    echo "ext     $extension"
-    "$CURSOR_BIN" --install-extension "$extension" >/dev/null
+    if "$CURSOR_BIN" --install-extension "$extension"; then
+      echo "ext ok  $extension"
+    else
+      echo "ext FAIL $extension" >&2
+    fi
   done < "$REPO_DIR/cursor/extensions.txt"
 else
-  echo "skip    cursor extensions (cursor CLI not found)"
+  echo "skip    cursor extensions (cursor CLI not found — install Cursor, then re-run)"
 fi

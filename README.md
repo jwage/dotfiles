@@ -19,7 +19,7 @@ Shared (macOS + Linux):
 |---|---|
 | `cursor/settings.json` | Cursor editor settings (theme, PHP tooling, Composer UI) |
 | `cursor/keybindings.json` | Cursor keybindings: agent/sidebar chords (`cmd` + `ctrl`) plus Linux `Ctrl+C` copies a terminal selection |
-| `cursor/extensions.txt` | Cursor extension IDs installed by `install.sh` |
+| `cursor/extensions.txt` | Cursor extension IDs (`install.sh` installs them; UI names are in comments — Twig is `whatwedo.twig`) |
 | `claude/CLAUDE.md` | Global Claude Code instructions (incl. keeping this repo in sync) |
 | `git/config` | Git aliases and behavior (not credentials — see below) |
 | `gh/config.yml` | GitHub CLI preferences |
@@ -71,9 +71,12 @@ Safe to re-run on either machine. Destinations that aren't already the
 correct symlink are backed up as `<file>.orig` first.
 
 Cursor settings land in `~/Library/Application Support/Cursor/User` on macOS
-and `~/.config/Cursor/User` on Linux. Install Cursor first so the extension
-step can run; if the `cursor` CLI is missing, settings still get linked and
-extensions are skipped.
+and `~/.config/Cursor/User` on Linux. Install Cursor **before** the first
+`install.sh` (or re-run it afterward) so extensions from
+`cursor/extensions.txt` actually install. If the `cursor` CLI is missing,
+settings still get linked and extensions are skipped with a visible
+`skip` line. Re-running after the CLI exists is how Omarchy picks up Twig
+(`whatwedo.twig`) and the rest of this Mac's extensions.
 
 `zsh/zshrc` expects zsh, oh-my-zsh, and Starship. `install.sh` only
 symlinks config; on Omarchy, Starship is already installed. On macOS:
