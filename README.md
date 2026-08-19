@@ -23,6 +23,7 @@ added, so this repo is the *delta*, not a full config mirror.
 | `gh/config.yml` | GitHub CLI preferences |
 | `mise/config.toml` | Tool version manifest |
 | `ssh/config` | Host aliases |
+| `cursor/keybindings.json` | Re-adds macOS's `Cmd+C`-copies-terminal-selection behavior on Linux (Cursor's own default binds that to `Ctrl+Shift+C` there, so plain `Ctrl+C` — what Omarchy's Super+C forwards — doesn't copy) |
 
 ## What's deliberately excluded
 

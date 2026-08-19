@@ -29,6 +29,7 @@ LINKS=(
   "gh/config.yml:$HOME/.config/gh/config.yml"
   "mise/config.toml:$HOME/.config/mise/config.toml"
   "ssh/config:$HOME/.ssh/config"
+  "cursor/keybindings.json:$HOME/.config/Cursor/User/keybindings.json"
 )
 
 for entry in "${LINKS[@]}"; do
