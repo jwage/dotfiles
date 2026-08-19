@@ -1,5 +1,17 @@
-# Linked to ~/.zshrc on macOS. Linux uses bash/bashrc instead.
+# Linked to ~/.zshrc on both macOS and Omarchy Linux (default login shell on
+# both; bash/bashrc is still tracked/linked on Linux as a fallback for
+# non-interactive/bash-specific tooling).
+
+# Omarchy environment (OMARCHY_PATH + PATH); this file doesn't exist on macOS
+[[ -r /usr/share/omarchy/default/bash/env-bootstrap ]] && source /usr/share/omarchy/default/bash/env-bootstrap
 
 DOTFILES="$(cd "$(dirname "$(realpath "$HOME/.zshrc")")/.." && pwd)"
 # shellcheck source=../shell/env.sh
 source "$DOTFILES/shell/env.sh"
+
+# oh-my-zsh (installed separately: `sh -c "$(curl -fsSL .../ohmyzsh/.../install.sh)"`,
+# plus zsh-autosuggestions/zsh-syntax-highlighting cloned into $ZSH_CUSTOM/plugins)
+export ZSH="$HOME/.oh-my-zsh"
+ZSH_THEME="robbyrussell"
+plugins=(git zsh-autosuggestions zsh-syntax-highlighting)
+source "$ZSH/oh-my-zsh.sh"

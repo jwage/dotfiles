@@ -6,9 +6,10 @@
 # left alone. A destination that isn't a symlink gets backed up before being
 # replaced.
 #
-# Shared files (Cursor, git, gh, mise, ssh, Claude, shell env) install on
+# Shared files (Cursor, git, gh, mise, ssh, Claude, shell env, zsh) install on
 # both macOS and Linux. Hyprland / Omarchy / XCompose / bashrc only install
-# on Linux. macOS gets ~/.zshrc instead of the Omarchy bashrc.
+# on Linux (bash is kept there as a fallback for non-interactive/bash-specific
+# tooling; zsh is the default login shell on both machines).
 
 set -euo pipefail
 
@@ -49,9 +50,10 @@ SHARED_LINKS=(
   "gh/config.yml:$HOME/.config/gh/config.yml"
   "mise/config.toml:$HOME/.config/mise/config.toml"
   "ssh/config:$HOME/.ssh/config"
+  "zsh/zshrc:$HOME/.zshrc"
 )
 
-# Omarchy / Hyprland / Linux login shell. Never install these on macOS.
+# Omarchy / Hyprland / bash fallback. Never install these on macOS.
 LINUX_LINKS=(
   "hypr/bindings.lua:$HOME/.config/hypr/bindings.lua"
   "hypr/input.lua:$HOME/.config/hypr/input.lua"
@@ -68,19 +70,11 @@ LINUX_LINKS=(
   "XCompose:$HOME/.XCompose"
 )
 
-# macOS login shell. The Omarchy bashrc sources Arch paths that do not exist here.
-DARWIN_LINKS=(
-  "zsh/zshrc:$HOME/.zshrc"
-)
-
 for entry in "${SHARED_LINKS[@]}"; do
   link_one "$entry"
 done
 
 if [[ "$OS" == "Darwin" ]]; then
-  for entry in "${DARWIN_LINKS[@]}"; do
-    link_one "$entry"
-  done
   echo "skip    Linux-only Hyprland/Omarchy/bashrc/XCompose"
 else
   for entry in "${LINUX_LINKS[@]}"; do

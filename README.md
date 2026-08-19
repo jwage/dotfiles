@@ -4,9 +4,8 @@ Personal config shared between this Mac and [Omarchy](https://omarchy.org)
 (Arch + Hyprland). Tracked so a distro switch, an Omarchy reset, or a new Mac
 doesn't mean starting over.
 
-`install.sh` is OS-aware: it installs the shared editor/dev files on both
-machines and skips Linux desktop files on macOS (and skips the macOS zshrc
-on Linux).
+`install.sh` is OS-aware: it installs the shared editor/dev/shell files on
+both machines and skips Linux desktop files on macOS.
 
 Only actual customizations are tracked here, not Omarchy's stock defaults.
 Each Linux desktop file was diffed against Omarchy's shipped default/skel
@@ -27,6 +26,7 @@ Shared (macOS + Linux):
 | `mise/config.toml` | Tool version manifest |
 | `ssh/config` | Host aliases |
 | `shell/env.sh` | PATH + optional `~/.config/mcp-secrets.env` (sourced by both shells) |
+| `zsh/zshrc` | Default login shell on both machines: Omarchy bootstrap (no-op on macOS) + `shell/env.sh` + oh-my-zsh (`robbyrussell` theme, `git`/`zsh-autosuggestions`/`zsh-syntax-highlighting` plugins) |
 
 Linux / Omarchy only:
 
@@ -37,14 +37,8 @@ Linux / Omarchy only:
 | `omarchy/defaults/agent` | Default coding agent |
 | `omarchy/plugins/jwage.workspaces/` | Custom bar widget: per-workspace app icons + window switching |
 | `omarchy/plugins/jwage.battery-sleep/` | Suspends after idle on battery only; never sleeps on AC |
-| `bash/bashrc` | Omarchy bashrc (sources Arch bootstrap, then `shell/env.sh`) |
+| `bash/bashrc` | Kept as a fallback for non-interactive/bash-specific tooling (sources Arch bootstrap, then `shell/env.sh`); zsh is the default login shell |
 | `XCompose` | Compose key sequences |
-
-macOS only:
-
-| Path | What it is |
-|---|---|
-| `zsh/zshrc` | Login shell; sources `shell/env.sh` only (no Omarchy paths) |
 
 ## What's deliberately excluded
 
@@ -77,6 +71,18 @@ Cursor settings land in `~/Library/Application Support/Cursor/User` on macOS
 and `~/.config/Cursor/User` on Linux. Install Cursor first so the extension
 step can run; if the `cursor` CLI is missing, settings still get linked and
 extensions are skipped.
+
+`zsh/zshrc` expects zsh and oh-my-zsh to already be installed (`install.sh`
+only symlinks the config, it doesn't install either):
+
+```sh
+# zsh: `pacman -S zsh` on Omarchy, preinstalled on macOS
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended --keep-zshrc
+ZSH_CUSTOM="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
+git clone --depth=1 https://github.com/zsh-users/zsh-autosuggestions "$ZSH_CUSTOM/plugins/zsh-autosuggestions"
+git clone --depth=1 https://github.com/zsh-users/zsh-syntax-highlighting "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting"
+chsh -s "$(command -v zsh)"
+```
 
 `~/.config/git/config` is the one exception — it's not symlinked directly.
 `gh auth setup-git` writes a machine-specific credential helper straight into
