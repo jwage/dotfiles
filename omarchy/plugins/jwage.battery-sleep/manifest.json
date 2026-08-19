@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "jwage.battery-sleep",
+  "name": "Battery Sleep",
+  "version": "1.0.0",
+  "author": "jwage",
+  "description": "Suspends after an idle timeout while on battery power. Never suspends on AC, so agents can keep working; the built-in screensaver/lock timers are untouched either way.",
+  "kinds": [
+    "service"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml"
+  }
+}

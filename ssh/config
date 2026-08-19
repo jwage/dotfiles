@@ -1,0 +1,11 @@
+ForwardAgent yes
+SendEnv SSH_USER
+StrictHostKeyChecking no
+
+Host devvm
+    ForwardAgent yes
+    HostName 192.168.56.10
+    User root
+    Port 22
+    IdentityFile "~/.ssh/id_rsa.pub"
+
