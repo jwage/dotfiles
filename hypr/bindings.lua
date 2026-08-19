@@ -137,3 +137,24 @@ end)
 hl.unbind("SUPER + SHIFT + M")
 o.bind("SUPER + SHIFT + M", "Omarchy Spotify",
   "omarchy shell -q quickshell.spotify.player togglePlayer")
+
+-- Default XF86AudioPlay/Pause/Next/Prev route through Omarchy's generic
+-- media service, which picks whichever MPRIS player it finds -- usually
+-- Chrome, since the Spotify plugin doesn't register over MPRIS. Route the
+-- Apple keyboard's F7/F8/F9 at the plugin directly instead (playPause/next/
+-- previous, added to BarWidget.qml's IpcHandler -- gets wiped by `omarchy
+-- plugin update quickshell.spotify`, reapply from git history if that
+-- happens). ALT/SHIFT modifier combos on these keys keep their defaults
+-- (precise volume, switch device, switch media source).
+hl.unbind("XF86AudioPlay")
+hl.unbind("XF86AudioPause")
+hl.unbind("XF86AudioNext")
+hl.unbind("XF86AudioPrev")
+o.bind("XF86AudioPlay", "Spotify play/pause",
+  "omarchy shell -q quickshell.spotify.player playPause", { locked = true })
+o.bind("XF86AudioPause", "Spotify play/pause",
+  "omarchy shell -q quickshell.spotify.player playPause", { locked = true })
+o.bind("XF86AudioNext", "Spotify next track",
+  "omarchy shell -q quickshell.spotify.player next", { locked = true })
+o.bind("XF86AudioPrev", "Spotify previous track",
+  "omarchy shell -q quickshell.spotify.player previous", { locked = true })

@@ -1,0 +1,29 @@
+diff --git i/BarWidget.qml w/BarWidget.qml
+index af95ee6..04b287a 100644
+--- i/BarWidget.qml
++++ w/BarWidget.qml
+@@ -181,6 +181,24 @@ BarWidget {
+     function toggleFullPlayer(): string {
+       return root.toggleFullPlayerShortcut()
+     }
++
++    function playPause(): string {
++      if (!root.spotify) return "no spotify service"
++      root.spotify.togglePlayback()
++      return "ok"
++    }
++
++    function next(): string {
++      if (!root.spotify) return "no spotify service"
++      root.spotify.next()
++      return "ok"
++    }
++
++    function previous(): string {
++      if (!root.spotify) return "no spotify service"
++      root.spotify.previous()
++      return "ok"
++    }
+   }
+ 
+   function openCurrentArtist() {

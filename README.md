@@ -42,6 +42,7 @@ Linux / Omarchy only:
 | `bash/bashrc` | Kept as a fallback for non-interactive/bash-specific tooling (sources Arch bootstrap, then `shell/env.sh`); zsh is the default login shell |
 | `XCompose` | Compose key sequences |
 | `etc/modprobe.d/hid_apple.conf` | `fnmode=1` so the Apple keyboard's F-row acts as media/brightness keys by default (macOS-style); hold Fn for literal F1-F12 |
+| `omarchy/plugin-patches/quickshell.spotify-ipc-media-controls.patch` | Adds `playPause`/`next`/`previous` IPC methods to the third-party `quickshell.spotify` plugin (not itself tracked here — it's `omarchy plugin add`'s own git clone at `~/.config/omarchy/plugins/quickshell.spotify/`), so `hypr/bindings.lua` can route F7/F8/F9 at Spotify instead of Omarchy's generic MPRIS-based media service (which otherwise picks Chrome). `omarchy plugin update quickshell.spotify` overwrites the live file; reapply with `cd ~/.config/omarchy/plugins/quickshell.spotify && git apply <this file>`, then `omarchy-shell shell rescanPlugins` (plain file-save hot-reload can race and half-apply — rescan forces a clean reload) |
 | `etc/modprobe.d/hid_magicmouse.conf` | Magic Mouse scroll tuning (`scroll_acceleration=0 scroll_speed=32`) — see `hypr/input.lua` for why |
 
 ## What's deliberately excluded
