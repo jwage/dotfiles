@@ -118,11 +118,15 @@ end
 
 -- Slack sends with Ctrl+Return on Linux (its own preference, not something
 -- Slack lets you rebind to Super/Cmd there), while macOS Slack uses Cmd+Return.
--- Forward Super+Return as Ctrl+Return, but only while Slack is focused --
--- nothing else claims Super+Return, but without this guard it would poke
--- whatever's in Slack's compose box even when some other app is focused.
+-- Forward Super+Return as Ctrl+Return, but only while Slack is focused.
+-- SUPER+RETURN was "Terminal" by default; unbind that so it doesn't fire
+-- alongside this, and fall back to launching the terminal ourselves when
+-- Slack isn't focused so the original shortcut keeps working everywhere else.
+hl.unbind("SUPER + RETURN")
 o.bind("SUPER + RETURN", "Send message (Cmd+Return, like macOS Slack)", function()
   if active_window_is_slack() then
     send_ctrl_shortcut_once("Return")()
+  else
+    hl.dispatch(hl.dsp.exec_cmd("omarchy-launch-terminal"))
   end
 end)
