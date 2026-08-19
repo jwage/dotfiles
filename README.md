@@ -25,7 +25,7 @@ Shared (macOS + Linux):
 | `gh/config.yml` | GitHub CLI preferences |
 | `mise/config.toml` | Tool version manifest |
 | `ssh/config` | Host aliases |
-| `shell/env.sh` | PATH + optional `~/.config/mcp-secrets.env` (sourced by both shells) |
+| `shell/env.sh` | MCP env file + PATH for `bin` / `vendor/bin` / global Composer |
 | `zsh/zshrc` | Shared zshrc: Omarchy bootstrap (no-op on macOS) + `shell/env.sh` + oh-my-zsh plugins + Starship prompt |
 | `starship/starship.toml` | Omarchy's stock Starship prompt (directory + branch + `❯`) so macOS matches |
 
@@ -96,11 +96,13 @@ cursor --install-extension /tmp/ext.vsix
 
 e.g. publisher/name `whatwedo`/`twig` and `gerane`/`theme-sunburst`.
 
-`zsh/zshrc` expects zsh, oh-my-zsh, and Starship. `install.sh` only
-symlinks config; on Omarchy, Starship is already installed. On macOS:
+`zsh/zshrc` expects zsh, oh-my-zsh, Starship, and mise. `install.sh` only
+symlinks config; on Omarchy those tools are already installed. On macOS:
 
 ```sh
-brew install starship
+brew install starship mise
+mise trust ~/.config/mise/config.toml
+mise install
 ```
 
 Oh My Zsh (plugins, not the prompt):

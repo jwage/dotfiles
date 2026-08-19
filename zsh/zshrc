@@ -9,6 +9,12 @@ DOTFILES="$(cd "$(dirname "$(realpath "$HOME/.zshrc")")/.." && pwd)"
 # shellcheck source=../shell/env.sh
 source "$DOTFILES/shell/env.sh"
 
+# Same toolchain as Omarchy (node, gh, claude, codex). On Linux, env-bootstrap
+# may already have activated mise; a second activate is harmless.
+if command -v mise >/dev/null 2>&1; then
+  eval "$(mise activate zsh)"
+fi
+
 # oh-my-zsh for plugins only (installed separately). Prompt is Starship so
 # both machines match Omarchy's stock look; robbyrussell is a fallback if
 # starship is not on PATH yet.
@@ -22,10 +28,8 @@ fi
 [[ -r "$ZSH/oh-my-zsh.sh" ]] && source "$ZSH/oh-my-zsh.sh"
 command -v starship >/dev/null 2>&1 && eval "$(starship init zsh)"
 
-# macOS used fish + nvm.fish (~/.local/share/nvm). Login zsh rebuilds PATH via
-# path_helper and does not inherit that, so put the selected Node back. No-op
-# on Omarchy, which uses mise and does not have this directory.
-if [[ -d "$HOME/.local/share/nvm" ]]; then
+# Fallback Node from nvm.fish if mise is not installed. No-op on Omarchy.
+if ! command -v mise >/dev/null 2>&1 && [[ -d "$HOME/.local/share/nvm" ]]; then
   export NVM_DIR="$HOME/.local/share/nvm"
   _nvm_version=""
   if [[ -r "$NVM_DIR/alias/default" ]]; then
