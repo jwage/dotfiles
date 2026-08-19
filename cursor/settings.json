@@ -76,5 +76,6 @@
     "claudeCode.selectedModel": "default",
     "cursor.composer.usageSummaryDisplay": "always",
     "window.autoDetectColorScheme": false,
-    "git.detectWorktrees": true
+    "git.detectWorktrees": true,
+    "git.openRepositoryInParentFolders": "always"
 }
