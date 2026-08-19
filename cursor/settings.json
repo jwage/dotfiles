@@ -70,7 +70,7 @@
     "claudeCode.preferredLocation": "panel",
     "workbench.editor.enablePreview": false,
     "terminal.integrated.defaultProfile.osx": "zsh",
-    "terminal.integrated.defaultProfile.linux": "bash",
+    "terminal.integrated.defaultProfile.linux": "zsh",
     "editor.accessibilitySupport": "off",
     "accessibility.signalOptions.volume": 0,
     "claudeCode.selectedModel": "default",

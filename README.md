@@ -26,7 +26,7 @@ Shared (macOS + Linux):
 | `mise/config.toml` | Tool version manifest |
 | `ssh/config` | Host aliases |
 | `shell/env.sh` | PATH + optional `~/.config/mcp-secrets.env` (sourced by both shells) |
-| `zsh/zshrc` | Shared zshrc: Omarchy bootstrap (no-op on macOS) + `shell/env.sh` + oh-my-zsh when `~/.oh-my-zsh` exists. Safe on this Mac, which uses fish as the login shell and does not install oh-my-zsh |
+| `zsh/zshrc` | Shared zshrc: Omarchy bootstrap (no-op on macOS) + `shell/env.sh` + oh-my-zsh (`robbyrussell`, `git` / `zsh-autosuggestions` / `zsh-syntax-highlighting`) |
 
 Linux / Omarchy only:
 
