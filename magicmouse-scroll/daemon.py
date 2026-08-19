@@ -170,20 +170,35 @@ class ScrollState:
                 if self.current_slot == self.primary_slot():
                     self.pending_dy += value - prev
 
+    def _recently_moved(self):
+        return (
+            self.last_pointer_move_t is not None
+            and time.monotonic() - self.last_pointer_move_t < POINTER_STILL_DEBOUNCE
+        )
+
     def _maybe_arm(self, info):
         if "x" not in info or "y" not in info or info.get("id", -1) == -1:
             return
         if "origin_x" not in info:
             info["origin_x"] = info["x"]
             info["origin_y"] = info["y"]
-            moved_recently = (
-                self.last_pointer_move_t is not None
-                and time.monotonic() - self.last_pointer_move_t < POINTER_STILL_DEBOUNCE
-            )
-            info["ignored"] = moved_recently
+            info["ignored"] = self._recently_moved()
             info["armed"] = False
             return
-        if info["ignored"] or info.get("armed"):
+        if info.get("armed"):
+            return
+        if info["ignored"]:
+            if self._recently_moved():
+                return
+            # The debounce window has expired while this touch is still
+            # down -- a touch that starts right as the mouse stops moving
+            # shouldn't be penalized for the rest of its lifetime just
+            # because of when it happened to land. Treat it as a fresh
+            # candidate from here, resetting the origin so arming distance
+            # is measured from now rather than jumping on the stale delta.
+            info["ignored"] = False
+            info["origin_x"] = info["x"]
+            info["origin_y"] = info["y"]
             return
         dist = ((info["x"] - info["origin_x"]) ** 2 + (info["y"] - info["origin_y"]) ** 2) ** 0.5
         if dist >= ARM_DISTANCE:
