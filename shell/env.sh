@@ -6,6 +6,12 @@
 
 export PATH="$HOME/.config/composer/vendor/bin:$PATH"
 
+# PHP CLI-only overrides (memory_limit=-1; see php/cli.ini). Trailing ':'
+# makes PHP scan its normal distro conf.d too (Xdebug, etc.), not just this
+# one -- and since php-fpm/Apache are started by systemd/launchd rather than
+# an interactive shell, they never see this var, so it can't affect them.
+[[ -n "$DOTFILES" ]] && export PHP_INI_SCAN_DIR="$DOTFILES/php:"
+
 # Run project-local Composer/PHP tools (phpunit, phpcs, phpcbf, ...) by bare
 # name from a repo root, e.g. `phpunit` instead of `vendor/bin/phpunit`.
 # Deliberately NOT done by putting bin/vendor/bin on PATH: relative PATH

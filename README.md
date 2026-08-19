@@ -25,9 +25,10 @@ Shared (macOS + Linux):
 | `gh/config.yml` | GitHub CLI preferences |
 | `mise/config.toml` | Tool version manifest |
 | `ssh/config` | Host aliases |
-| `shell/env.sh` | MCP env file + PATH for `bin` / `vendor/bin` / global Composer |
+| `shell/env.sh` | MCP env file, global Composer PATH, PHP CLI ini scan dir, `command_not_found_handler`/`handle` fallback to local `bin`/`vendor/bin` |
 | `zsh/zshrc` | Shared zshrc: Omarchy bootstrap (no-op on macOS) + `shell/env.sh` + oh-my-zsh plugins + Starship prompt |
 | `starship/starship.toml` | Omarchy's stock Starship prompt (directory + branch + `❯`) so macOS matches |
+| `php/cli.ini` | PHP CLI-only overrides (`memory_limit = -1`); loaded via `PHP_INI_SCAN_DIR` in `shell/env.sh`, not the system php.ini — see below |
 
 Linux / Omarchy only:
 
@@ -95,6 +96,21 @@ cursor --install-extension /tmp/ext.vsix
 ```
 
 e.g. publisher/name `whatwedo`/`twig` and `gerane`/`theme-sunburst`.
+
+### PHP
+
+PHP itself is installed via each OS's own package manager (`pacman` on
+Omarchy, `brew` on macOS) — not mise — so you keep each OS's native
+extensions (Xdebug, etc.) instead of a from-source mise build. Keep both on
+the same major.minor version manually (`php --version`); this repo doesn't
+enforce it.
+
+What *is* shared is CLI-only settings (`php/cli.ini` — currently just
+`memory_limit = -1`, since phpunit/Composer on a large codebase shouldn't
+hit a web-request-sized default). It's loaded via `PHP_INI_SCAN_DIR` in
+`shell/env.sh`, not by editing the system php.ini: that variable is only
+ever set in an interactive shell, so php-fpm/Apache workers (started by
+systemd/launchd, not a shell) never see it and keep their normal limits.
 
 `zsh/zshrc` expects zsh, oh-my-zsh, Starship, and mise. `install.sh` only
 symlinks config; on Omarchy those tools are already installed. On macOS:
