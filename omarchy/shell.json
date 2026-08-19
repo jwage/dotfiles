@@ -17,7 +17,8 @@
           "id": "jwage.workspaces"
         },
         {
-          "id": "quickshell.spotify"
+          "id": "quickshell.spotify",
+          "shortcutPlayer": "Full player"
         },
         {
           "id": "omarchy.active-window"
