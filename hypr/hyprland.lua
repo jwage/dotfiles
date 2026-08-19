@@ -32,7 +32,6 @@ require("default.hypr.toggles")
 -- it (and switches focus) to its assigned workspace, so the layout stays
 -- the same across logins/relaunches instead of wherever it happened to open.
 o.window("^cursor$", { workspace = "1" })
-o.window("^google-chrome$", { workspace = "1" }) -- tiled alongside Cursor for live-reload dev workflow
 o.window("^org.omarchy.agent$", { workspace = "3" }) -- Claude Code sessions
 o.window("^slack$", { workspace = "4" })
 o.window("^signal$", { workspace = "5" })
