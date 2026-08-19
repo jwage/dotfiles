@@ -33,7 +33,6 @@ require("default.hypr.toggles")
 -- the same across logins/relaunches instead of wherever it happened to open.
 o.window("^cursor$", { workspace = "1" })
 o.window("^google-chrome$", { workspace = "1" }) -- tiled alongside Cursor for live-reload dev workflow
-o.window("^foot$", { workspace = "3" })
-o.window("^org.omarchy.agent$", { workspace = "3" }) -- Claude Code sessions, grouped with the terminal
+o.window("^org.omarchy.agent$", { workspace = "3" }) -- Claude Code sessions
 o.window("^slack$", { workspace = "4" })
 o.window("^signal$", { workspace = "5" })
