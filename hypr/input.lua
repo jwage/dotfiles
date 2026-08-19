@@ -68,15 +68,26 @@ hl.device({
 })
 
 -- Per-device override so mouse sensitivity doesn't affect the trackpad.
--- "work-mouse" is actually an Apple Magic Mouse (paired as "Work Mouse" in
--- Bluetooth). Its scroll surface is wheel-emulated by the kernel's
+-- This is the Apple Magic Mouse, paired over Bluetooth as "Jonathan's Magic
+-- Mouse" — Hyprland derives the device name from that Bluetooth name, so it
+-- has to match exactly (curly apostrophe included) or this override silently
+-- matches nothing. Its scroll surface is wheel-emulated by the kernel's
 -- hid_magicmouse driver (see /etc/modprobe.d/hid_magicmouse.conf for the
 -- scroll_speed/scroll_acceleration tuning), so libinput sees plain wheel
 -- ticks rather than smooth touchpad motion. scroll_factor here softens
 -- those ticks to feel closer to the trackpad's scroll_factor = 0.4.
+--
+-- accel_profile = "flat" drops libinput's own acceleration curve, which
+-- ramps up far more aggressively on fast flicks than macOS's does — that
+-- mismatch is most of what makes the pointer feel "too fast" by comparison.
+-- Hyprland/libinput don't expose a true custom curve for pointer motion
+-- (only for scroll), so flat + a plain speed multiplier is the closest
+-- approximation available, not a byte-for-byte match. Retune sensitivity
+-- to taste (-1 slowest, 1 fastest).
 hl.device({
-  name = "work-mouse",
-  sensitivity = -0.8,
+  name = "jonathan’s-magic-mouse",
+  accel_profile = "flat",
+  sensitivity = -0.5,
   scroll_factor = 1.0,
 })
 
