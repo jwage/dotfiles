@@ -18,7 +18,7 @@ added, so this repo is the *delta*, not a full config mirror.
 | `omarchy/plugins/jwage.battery-sleep/` | Suspends after idle on battery only; never sleeps on AC |
 | `bash/bashrc` | Shell PATH/env additions |
 | `XCompose` | Compose key sequences |
-| `git/config` | Git aliases and behavior (not credentials — see note in the file) |
+| `git/config` | Git aliases and behavior (not credentials — see below) |
 | `gh/config.yml` | GitHub CLI preferences |
 | `mise/config.toml` | Tool version manifest |
 | `ssh/config` | Host aliases |
@@ -43,6 +43,20 @@ git clone https://github.com/jwage/dotfiles.git ~/Repositories/dotfiles
 `install.sh` symlinks every tracked file into place, backing up whatever's
 already there as `<file>.orig` first. Safe to re-run.
 
+`~/.config/git/config` is the one exception — it's not symlinked directly.
+`gh auth setup-git` writes a machine-specific credential helper straight into
+whatever `~/.config/git/config` points at, and a plain symlink would put that
+into the tracked repo file instead of staying local. So `install.sh` instead
+writes a small local file that `[include]`s the tracked one:
+
+```
+[include]
+	path = /home/you/Repositories/dotfiles/git/config
+```
+
+Anything added below that `[include]` line (like the credential helper)
+stays local and untracked.
+
 After installing on a fresh machine, also run:
 
 ```sh
@@ -50,4 +64,4 @@ gh auth login
 gh auth setup-git
 ```
 
-to restore the git credential helper (see the note in `git/config`).
+to populate that local credential helper.

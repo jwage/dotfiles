@@ -25,7 +25,6 @@ LINKS=(
   "omarchy/plugins/jwage.battery-sleep/Service.qml:$HOME/.config/omarchy/plugins/jwage.battery-sleep/Service.qml"
   "bash/bashrc:$HOME/.bashrc"
   "XCompose:$HOME/.XCompose"
-  "git/config:$HOME/.config/git/config"
   "gh/config.yml:$HOME/.config/gh/config.yml"
   "mise/config.toml:$HOME/.config/mise/config.toml"
   "ssh/config:$HOME/.ssh/config"
@@ -50,3 +49,27 @@ for entry in "${LINKS[@]}"; do
   ln -s "$src" "$dest"
   echo "linked  $dest -> $src"
 done
+
+# git/config is NOT symlinked: `gh auth setup-git` writes a machine-specific
+# credential helper into it, and a plain symlink would put that straight into
+# the tracked repo file. Instead the live file just [include]s the tracked
+# one, leaving room for local-only additions (like the credential helper)
+# below the include.
+GIT_CONFIG="$HOME/.config/git/config"
+if [[ ! -f "$GIT_CONFIG" ]] || ! grep -qF "$REPO_DIR/git/config" "$GIT_CONFIG"; then
+  if [[ -e "$GIT_CONFIG" || -L "$GIT_CONFIG" ]]; then
+    mv "$GIT_CONFIG" "$GIT_CONFIG.orig"
+    echo "backed up $GIT_CONFIG -> $GIT_CONFIG.orig"
+  fi
+  mkdir -p "$(dirname "$GIT_CONFIG")"
+  cat > "$GIT_CONFIG" <<EOF
+# Machine-local additions only (credential helpers, etc.) go below this
+# include — everything portable lives in the dotfiles repo itself. See
+# $REPO_DIR/git/config and its README for why these two are kept separate.
+[include]
+	path = $REPO_DIR/git/config
+EOF
+  echo "wrote   $GIT_CONFIG (includes $REPO_DIR/git/config)"
+else
+  echo "ok      $GIT_CONFIG"
+fi
