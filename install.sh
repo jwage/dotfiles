@@ -51,6 +51,7 @@ SHARED_LINKS=(
   "mise/config.toml:$HOME/.config/mise/config.toml"
   "ssh/config:$HOME/.ssh/config"
   "zsh/zshrc:$HOME/.zshrc"
+  "starship/starship.toml:$HOME/.config/starship.toml"
 )
 
 # Omarchy / Hyprland / bash fallback. Never install these on macOS.

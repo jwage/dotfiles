@@ -9,13 +9,18 @@ DOTFILES="$(cd "$(dirname "$(realpath "$HOME/.zshrc")")/.." && pwd)"
 # shellcheck source=../shell/env.sh
 source "$DOTFILES/shell/env.sh"
 
-# oh-my-zsh (installed separately: `sh -c "$(curl -fsSL .../ohmyzsh/.../install.sh)"`,
-# plus zsh-autosuggestions/zsh-syntax-highlighting cloned into $ZSH_CUSTOM/plugins).
-# Guarded so a machine without oh-my-zsh still gets shell/env.sh.
+# oh-my-zsh for plugins only (installed separately). Prompt is Starship so
+# both machines match Omarchy's stock look; robbyrussell is a fallback if
+# starship is not on PATH yet.
 export ZSH="$HOME/.oh-my-zsh"
-ZSH_THEME="robbyrussell"
 plugins=(git zsh-autosuggestions zsh-syntax-highlighting)
+if command -v starship >/dev/null 2>&1; then
+  ZSH_THEME=""
+else
+  ZSH_THEME="robbyrussell"
+fi
 [[ -r "$ZSH/oh-my-zsh.sh" ]] && source "$ZSH/oh-my-zsh.sh"
+command -v starship >/dev/null 2>&1 && eval "$(starship init zsh)"
 
 # macOS used fish + nvm.fish (~/.local/share/nvm). Login zsh rebuilds PATH via
 # path_helper and does not inherit that, so put the selected Node back. No-op

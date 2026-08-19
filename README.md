@@ -26,7 +26,8 @@ Shared (macOS + Linux):
 | `mise/config.toml` | Tool version manifest |
 | `ssh/config` | Host aliases |
 | `shell/env.sh` | PATH + optional `~/.config/mcp-secrets.env` (sourced by both shells) |
-| `zsh/zshrc` | Shared zshrc: Omarchy bootstrap (no-op on macOS) + `shell/env.sh` + oh-my-zsh (`robbyrussell`, `git` / `zsh-autosuggestions` / `zsh-syntax-highlighting`) |
+| `zsh/zshrc` | Shared zshrc: Omarchy bootstrap (no-op on macOS) + `shell/env.sh` + oh-my-zsh plugins + Starship prompt |
+| `starship/starship.toml` | Omarchy's stock Starship prompt (directory + branch + `❯`) so macOS matches |
 
 Linux / Omarchy only:
 
@@ -49,9 +50,11 @@ Linux / Omarchy only:
 - macOS `~/.gitconfig` (git-lfs, this machine's `user.email`, extra
   `safe.directory` entries). Portable aliases live in the tracked file;
   overlapping keys in `~/.gitconfig` win
-- Terminal emulator configs (alacritty/foot/ghostty/kitty), tmux, btop,
-  starship — verified identical to Omarchy's stock skel, so a fresh install
-  already gives you these
+- Terminal emulator configs (alacritty/foot/ghostty/kitty), tmux, btop —
+  verified identical to Omarchy's stock skel, so a fresh install already
+  gives you these. Starship's *binary* is the same; the prompt *config* is
+  tracked in `starship/starship.toml` so this Mac does not keep Oh My Zsh's
+  `robbyrussell` theme.
 - Cursor history, workspace storage, MCP secrets, crash-reporter IDs, and
   machine-local PHP binary paths (`/usr/local/bin/php` vs `/usr/bin/php`) —
   those last ones stay off the tracked file so both machines use `php` from
@@ -72,8 +75,14 @@ and `~/.config/Cursor/User` on Linux. Install Cursor first so the extension
 step can run; if the `cursor` CLI is missing, settings still get linked and
 extensions are skipped.
 
-`zsh/zshrc` expects zsh and oh-my-zsh to already be installed (`install.sh`
-only symlinks the config, it doesn't install either):
+`zsh/zshrc` expects zsh, oh-my-zsh, and Starship. `install.sh` only
+symlinks config; on Omarchy, Starship is already installed. On macOS:
+
+```sh
+brew install starship
+```
+
+Oh My Zsh (plugins, not the prompt):
 
 ```sh
 # zsh: `pacman -S zsh` on Omarchy, preinstalled on macOS
