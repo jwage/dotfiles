@@ -130,16 +130,3 @@ o.bind("SUPER + RETURN", "Send message (Cmd+Return, like macOS Slack)", function
     hl.dispatch(hl.dsp.exec_cmd("omarchy-launch-terminal"))
   end
 end)
-
--- Mac screenshot shortcuts (Cmd+Shift+3/4/5), so muscle memory doesn't
--- switch between machines. Literal digit keys are free -- Omarchy's own
--- workspace-move binds use raw key codes (code:12 etc.), not digit chars.
--- Default processing (no 2nd arg = "slurp") saves to file, copies to the
--- clipboard, and shows an editable notification, matching macOS's own
--- save+clipboard+thumbnail behavior more closely than a bare save would.
-o.bind("SUPER + SHIFT + 3", "Screenshot fullscreen (Cmd+Shift+3)",
-  "omarchy-capture-screenshot fullscreen")
-o.bind("SUPER + SHIFT + 4", "Screenshot selection (Cmd+Shift+4)",
-  "omarchy-capture-screenshot region")
-o.bind("SUPER + SHIFT + 5", "Screenshot options (Cmd+Shift+5)",
-  "omarchy-menu toggle capture")
