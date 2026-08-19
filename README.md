@@ -75,8 +75,26 @@ and `~/.config/Cursor/User` on Linux. Install Cursor **before** the first
 `install.sh` (or re-run it afterward) so extensions from
 `cursor/extensions.txt` actually install. If the `cursor` CLI is missing,
 settings still get linked and extensions are skipped with a visible
-`skip` line. Re-running after the CLI exists is how Omarchy picks up Twig
-(`whatwedo.twig`) and the rest of this Mac's extensions.
+`skip` line; a failed install prints `ext FAIL <id>` instead of being
+swallowed.
+
+### Extensions install.sh can't install
+
+`whatwedo.twig` and `gerane.theme-sunburst` always fail with "not found",
+on either machine — they're not published to Cursor's own marketplace
+(`marketplace.cursorapi.com`; confirmed via its extensionquery API, zero
+results for either ID), not an Omarchy-vs-Mac difference. They must have
+been sideloaded originally from the real VS Code Marketplace. Re-sideload
+the VSIX on any new machine:
+
+```sh
+curl -sL --compressed \
+  "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/<publisher>/vsextensions/<name>/latest/vspackage" \
+  -o /tmp/ext.vsix
+cursor --install-extension /tmp/ext.vsix
+```
+
+e.g. publisher/name `whatwedo`/`twig` and `gerane`/`theme-sunburst`.
 
 `zsh/zshrc` expects zsh, oh-my-zsh, and Starship. `install.sh` only
 symlinks config; on Omarchy, Starship is already installed. On macOS:

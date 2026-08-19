@@ -10,7 +10,10 @@ devsense.profiler-php-vscode
 mehedidracula.php-namespace-resolver
 valeryanm.vscode-phpsab
 
-# Twig (UI name: "Twig")
+# Twig (UI name: "Twig") -- NOT in Cursor's marketplace (marketplace.cursorapi.com
+# has zero results for it), so install.sh's --install-extension always fails for
+# this one. Sideload the VSIX from the real VS Code Marketplace instead -- see
+# README's "Extensions install.sh can't install" section.
 whatwedo.twig
 
 # CSS / HTML
@@ -18,6 +21,8 @@ bradlc.vscode-tailwindcss
 ecmel.vscode-html-css
 
 # Theme / snapshots
+# gerane.theme-sunburst also isn't in Cursor's marketplace -- same VSIX sideload
+# as Twig above.
 gerane.theme-sunburst
 adpyke.codesnap
 
