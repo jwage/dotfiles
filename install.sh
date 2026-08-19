@@ -67,6 +67,8 @@ LINUX_LINKS=(
   "omarchy/plugins/jwage.workspaces/Workspaces.qml:$HOME/.config/omarchy/plugins/jwage.workspaces/Workspaces.qml"
   "omarchy/plugins/jwage.battery-sleep/manifest.json:$HOME/.config/omarchy/plugins/jwage.battery-sleep/manifest.json"
   "omarchy/plugins/jwage.battery-sleep/Service.qml:$HOME/.config/omarchy/plugins/jwage.battery-sleep/Service.qml"
+  "magicmouse-scroll/daemon.py:$HOME/.local/bin/magicmouse-scroll-daemon"
+  "magicmouse-scroll/magicmouse-scroll.service:$HOME/.config/systemd/user/magicmouse-scroll.service"
   "bash/bashrc:$HOME/.bashrc"
   "XCompose:$HOME/.XCompose"
 )
@@ -83,16 +85,18 @@ else
   done
 fi
 
-# Root-owned system config (kernel module options). Linux only -- macOS has
-# no modprobe.d equivalent. Needs sudo, unlike everything else here, so it's
-# kept separate from link_one. Only symlinks: reload the module yourself
-# (rmmod/modprobe, or reboot) for a changed option to actually take effect --
-# doing that automatically here could yank input out from under whoever's
-# running this script with that exact keyboard/mouse.
+# Root-owned system config (kernel module options, udev rules). Linux only
+# -- macOS has no modprobe.d/udev equivalent. Needs sudo, unlike everything
+# else here, so it's kept separate from link_one. Only symlinks: reload the
+# module/udev rules yourself (rmmod+modprobe, udevadm control --reload-rules,
+# or reboot) for a changed option to actually take effect -- doing that
+# automatically here could yank input out from under whoever's running this
+# script with that exact keyboard/mouse.
 if [[ "$OS" != "Darwin" ]]; then
   for entry in \
     "etc/modprobe.d/hid_apple.conf:/etc/modprobe.d/hid_apple.conf" \
-    "etc/modprobe.d/hid_magicmouse.conf:/etc/modprobe.d/hid_magicmouse.conf"
+    "etc/modprobe.d/hid_magicmouse.conf:/etc/modprobe.d/hid_magicmouse.conf" \
+    "etc/udev/rules.d/99-uinput.rules:/etc/udev/rules.d/99-uinput.rules"
   do
     src="$REPO_DIR/${entry%%:*}"
     dest="${entry#*:}"
@@ -105,7 +109,7 @@ if [[ "$OS" != "Darwin" ]]; then
       echo "backed up $dest -> $dest.orig"
     fi
     sudo ln -sf "$src" "$dest"
-    echo "linked  $dest -> $src (reload the module or reboot to apply)"
+    echo "linked  $dest -> $src (reload the module/udev rules or reboot to apply)"
   done
 fi
 

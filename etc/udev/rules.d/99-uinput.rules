@@ -1,0 +1,4 @@
+# Lets members of the "input" group open /dev/uinput without root, so the
+# magicmouse-scroll-daemon (see ../../magicmouse-scroll/) can create its
+# synthetic device as a normal user via systemd --user.
+KERNEL=="uinput", GROUP="input", MODE="0660"

@@ -91,6 +91,22 @@ hl.device({
   scroll_factor = 0.4,
 })
 
+-- While magicmouse-scroll-daemon (see ../../magicmouse-scroll/) is running,
+-- it exclusively grabs the physical device above so it can compute momentum
+-- scrolling from the raw touch surface -- libinput then only ever sees the
+-- synthetic device it creates, so the pointer tuning has to be duplicated
+-- here under that device's name or the cursor silently reverts to
+-- libinput's un-tuned defaults. Scroll isn't re-tuned here: the daemon
+-- already converts touch movement to wheel notches at a calibrated scale
+-- (and inverts direction itself -- setting natural_scroll here had no
+-- observed effect on this synthetic device, so an additional scroll_factor
+-- or natural_scroll would just double up on what the daemon already does).
+hl.device({
+  name = "magicmouse-scroll-daemon",
+  accel_profile = "flat",
+  sensitivity = -0.5,
+})
+
 -- App-specific touchpad scroll speeds.
 -- o.window("(Alacritty|kitty|foot)", { scroll_touchpad = 1.5 })
 -- o.window("com.mitchellh.ghostty", { scroll_touchpad = 0.2 })

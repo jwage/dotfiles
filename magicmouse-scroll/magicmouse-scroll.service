@@ -1,0 +1,11 @@
+[Unit]
+Description=Momentum scrolling daemon for the Apple Magic Mouse
+After=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/bin/magicmouse-scroll-daemon
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target
