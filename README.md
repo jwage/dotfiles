@@ -41,6 +41,8 @@ Linux / Omarchy only:
 | `omarchy/plugins/jwage.battery-sleep/` | Suspends after idle on battery only; never sleeps on AC |
 | `bash/bashrc` | Kept as a fallback for non-interactive/bash-specific tooling (sources Arch bootstrap, then `shell/env.sh`); zsh is the default login shell |
 | `XCompose` | Compose key sequences |
+| `etc/modprobe.d/hid_apple.conf` | `fnmode=1` so the Apple keyboard's F-row acts as media/brightness keys by default (macOS-style); hold Fn for literal F1-F12 |
+| `etc/modprobe.d/hid_magicmouse.conf` | Magic Mouse scroll tuning (`scroll_acceleration=0 scroll_speed=32`) — see `hypr/input.lua` for why |
 
 ## What's deliberately excluded
 
@@ -70,6 +72,15 @@ git clone https://github.com/jwage/dotfiles.git ~/Repositories/dotfiles
 
 Safe to re-run on either machine. Destinations that aren't already the
 correct symlink are backed up as `<file>.orig` first.
+
+On Linux, `install.sh` will prompt for `sudo` once to symlink
+`etc/modprobe.d/*.conf` into `/etc/modprobe.d/` (everything else it does
+needs no elevated privileges). Symlinking doesn't apply a changed kernel
+module option by itself — reload the module or reboot:
+
+```sh
+sudo rmmod hid_apple && sudo modprobe hid_apple
+```
 
 Cursor settings land in `~/Library/Application Support/Cursor/User` on macOS
 and `~/.config/Cursor/User` on Linux. Install Cursor **before** the first

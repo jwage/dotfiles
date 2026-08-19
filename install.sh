@@ -83,6 +83,32 @@ else
   done
 fi
 
+# Root-owned system config (kernel module options). Linux only -- macOS has
+# no modprobe.d equivalent. Needs sudo, unlike everything else here, so it's
+# kept separate from link_one. Only symlinks: reload the module yourself
+# (rmmod/modprobe, or reboot) for a changed option to actually take effect --
+# doing that automatically here could yank input out from under whoever's
+# running this script with that exact keyboard/mouse.
+if [[ "$OS" != "Darwin" ]]; then
+  for entry in \
+    "etc/modprobe.d/hid_apple.conf:/etc/modprobe.d/hid_apple.conf" \
+    "etc/modprobe.d/hid_magicmouse.conf:/etc/modprobe.d/hid_magicmouse.conf"
+  do
+    src="$REPO_DIR/${entry%%:*}"
+    dest="${entry#*:}"
+    if [[ -L "$dest" && "$(sudo realpath "$dest" 2>/dev/null)" == "$(realpath "$src")" ]]; then
+      echo "ok      $dest"
+      continue
+    fi
+    if sudo test -e "$dest" -o -L "$dest"; then
+      sudo mv "$dest" "$dest.orig"
+      echo "backed up $dest -> $dest.orig"
+    fi
+    sudo ln -sf "$src" "$dest"
+    echo "linked  $dest -> $src (reload the module or reboot to apply)"
+  done
+fi
+
 # git/config is NOT symlinked: `gh auth setup-git` writes a machine-specific
 # credential helper into it, and a plain symlink would put that straight into
 # the tracked repo file. Instead the live file just [include]s the tracked
