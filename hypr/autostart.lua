@@ -51,21 +51,32 @@ o.window({ class = "Spotify" }, { workspace = "5 silent" })
 -- would just open one blank window and never bring the second window back.
 o.launch_on_start("google-chrome-stable --restore-last-session")
 
--- A plain o.window({ title = ... }, { workspace = ... }) rule is a "static"
--- effect: Hyprland checks it exactly once, against the window's *initial*
--- title, at the moment the window maps (wiki: Window-Rules#static-effects).
--- That covers the common case (title is already right by the time the
--- window maps), but right after a reboot Chrome sometimes maps its restored
--- windows before the session-restored page has actually loaded and set its
--- real tab title, so that one-shot check misses and the window falls back
--- to whatever workspace happened to be active -- which is how Chrome ended
--- up parked on workspace 5 next to Spotify, with workspace 3 left without
--- its TradersPost window. Keep the static rule as the fast path, and back
--- it up with a listener that watches for the title arriving late and moves
--- the window once it does. Guard by window address so a later title change
--- on an already-placed window (e.g. switching tabs) can't move it again.
-o.window({ title = ".*Mail.*" }, { workspace = "1 silent" })
+-- A title-only static rule (o.window({ title = ... }, { workspace = ... }))
+-- only fires if the window's *initial* title already matches at the moment
+-- it maps (wiki: Window-Rules#static-effects) -- restore-last-session
+-- doesn't always focus the Mail tab first, so on some reboots the first
+-- window to map has some other tab's title (e.g. a GitHub page) and neither
+-- the Mail nor TradersPost title rule matches. With no rule firing, the
+-- window falls back to whatever workspace happened to be active, which is
+-- how Chrome has ended up parked on workspace 5 next to Spotify instead of
+-- its usual workspace 1.
+--
+-- Fix: match the fallback rule by class (always true for any Chrome window,
+-- regardless of which tab is focused at map time) so there's always a
+-- deterministic landing spot. Rules apply top to bottom with last-match-
+-- winning, so the more specific TradersPost title rule comes after and
+-- overrides it to workspace 3 for the cases where the title is already
+-- known at map time.
+o.window({ class = "google-chrome" }, { workspace = "1 silent" })
 o.window({ title = ".*TradersPost.*" }, { workspace = "3 silent" })
+
+-- Static rules only catch the title if it's already right at map time.
+-- Back that up with a listener for the race where TradersPost's real tab
+-- title arrives late (after the session-restored page finishes loading),
+-- so a window that landed on workspace 1 by default still gets moved to 3
+-- once its title reveals it. Guard by window address so a later title
+-- change on an already-placed window (e.g. switching tabs) can't move it
+-- again.
 
 local placed_by_title = {}
 local function place_chrome_window_by_title(needle, workspace)
@@ -80,5 +91,4 @@ local function place_chrome_window_by_title(needle, workspace)
   end)
 end
 
-place_chrome_window_by_title("Mail", 1)
 place_chrome_window_by_title("TradersPost", 3)
