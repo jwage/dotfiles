@@ -37,7 +37,7 @@ Linux / Omarchy only:
 | Path | What it is |
 |---|---|
 | `php/linux/` | Arch-only `extension=` enables (CLI); macOS never scans this dir |
-| `hypr/*.lua` | Hyprland: keybinds, input, per-app workspaces, autostart, look & feel |
+| `hypr/*.lua` | Hyprland: keybinds, input, per-app workspaces, autostart, look & feel, monitors (output names/scale in `monitors.lua` are specific to this machine's laptop panel + external display) |
 | `omarchy/shell.json` | Bar widget layout |
 | `omarchy/defaults/agent` | Default coding agent |
 | `omarchy/plugins/jwage.workspaces/` | Custom bar widget: per-workspace app icons + window switching |

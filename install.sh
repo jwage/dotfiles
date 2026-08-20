@@ -61,6 +61,7 @@ LINUX_LINKS=(
   "hypr/hyprland.lua:$HOME/.config/hypr/hyprland.lua"
   "hypr/looknfeel.lua:$HOME/.config/hypr/looknfeel.lua"
   "hypr/autostart.lua:$HOME/.config/hypr/autostart.lua"
+  "hypr/monitors.lua:$HOME/.config/hypr/monitors.lua"
   "omarchy/shell.json:$HOME/.config/omarchy/shell.json"
   "omarchy/defaults/agent:$HOME/.config/omarchy/defaults/agent"
   "omarchy/plugins/jwage.workspaces/manifest.json:$HOME/.config/omarchy/plugins/jwage.workspaces/manifest.json"
