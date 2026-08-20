@@ -12,7 +12,7 @@
 -- scale regardless of monitor) has been removed -- it can't vary per
 -- output, so it would fight these per-monitor values. Modern GTK picks up
 -- each monitor's real scale automatically via Wayland fractional-scaling.
-hl.monitor({ output = "eDP-1", mode = "preferred", position = "auto", scale = 1.6 })
+hl.monitor({ output = "eDP-1", mode = "preferred", position = "auto", scale = 2.0 })
 hl.monitor({ output = "DP-1", mode = "preferred", position = "auto", scale = 1.5 })
 
 -- Configure a specific monitor.
