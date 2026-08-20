@@ -48,12 +48,13 @@ o.bind("ALT + SHIFT + TAB", "Previous workspace", hl.dsp.focus({ workspace = "e-
 -- shortcuts (new tab, refresh, save), instead of switching to Ctrl for those.
 -- Mirrors the "send a synthetic Ctrl+key to the focused surface" mechanism
 -- Omarchy already uses for SUPER+C/V/X (see default/hypr/bindings/clipboard.lua).
-local function send_ctrl_shortcut_once(key)
+local function send_ctrl_shortcut_once(key, mods)
+  mods = mods or "CTRL"
   return function()
-    hl.dispatch(hl.dsp.send_key_state({ mods = "CTRL", key = key, state = "down" }))
+    hl.dispatch(hl.dsp.send_key_state({ mods = mods, key = key, state = "down" }))
 
     hl.timer(function()
-      hl.dispatch(hl.dsp.send_key_state({ mods = "CTRL", key = key, state = "up" }))
+      hl.dispatch(hl.dsp.send_key_state({ mods = mods, key = key, state = "up" }))
     end, { timeout = 50, type = "oneshot" })
   end
 end
@@ -75,6 +76,10 @@ end
 
 -- Free (no default macOS meaning to protect): just forward.
 o.bind("SUPER + R", "Refresh (Cmd+R)", send_ctrl_shortcut_once("R"))
+
+-- Hard refresh (Cmd+Shift+R on macOS Chrome) -- Chrome on Linux uses the same
+-- Ctrl+Shift+R chord, so just forward it.
+o.bind("SUPER + SHIFT + R", "Hard refresh (Cmd+Shift+R)", send_ctrl_shortcut_once("R", "CTRL SHIFT"))
 
 -- SUPER+T was "Toggle window floating/tiling" -- move that to SUPER+SHIFT+T
 -- so SUPER+T can become new tab, matching Cmd+T.
