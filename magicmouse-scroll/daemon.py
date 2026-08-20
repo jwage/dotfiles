@@ -42,13 +42,27 @@ UINPUT_NAME = "magicmouse-scroll-daemon"
 # so 120 here is roughly one notch per 1.7mm of finger travel.
 SCALE = 120.0
 
-# Momentum decay applied once per tick after the finger lifts.
-DECAY = 0.94
 TICK_HZ = 60.0
 TICK_INTERVAL = 1.0 / TICK_HZ
 
-# Below this velocity (hi-res units per tick) momentum stops entirely.
-STOP_VELOCITY = 1.5
+# Total coast distance/duration are computed once from the release velocity
+# via constant-deceleration kinematics -- position(t) = v0*t - 0.5*a*t^2,
+# hitting exactly zero velocity at t_stop = v0/a -- rather than decaying
+# until an arbitrary velocity threshold. This is the core idea behind
+# Android's OverScroller and Chromium's fling curve (verified from their
+# real source): a harder flick travels quadratically farther and glides
+# proportionally longer, instead of every release just being a bigger
+# version of the same exponential-decay shape, and the coast always ends at
+# a clean computed stop rather than an indefinite decaying tail.
+# Raw ABS_MT_POSITION units per second^2.
+DECELERATION = 3000.0
+
+# Hard cap on how long a single coast can run regardless of release speed
+# (mirrors Chromium's kMaxCurveDurationForFlinging) -- without this a very
+# hard flick would coast for an uncomfortably long time. When this cap
+# binds, the effective deceleration is recomputed so velocity still hits
+# exactly zero at the cap instead of stopping abruptly mid-motion.
+MAX_COAST_DURATION = 1.5
 
 # A release below this velocity doesn't launch momentum at all -- treats a
 # deliberate slow stop (resting the finger) like macOS does, instead of
@@ -271,12 +285,36 @@ class ScrollState:
             self._legacy_y -= ly * HI_RES_PER_NOTCH
             self.ui.write(e.EV_REL, e.REL_WHEEL, ly)
 
-    async def coast(self, vx, vy):
+    async def coast(self, vx0, vy0):
+        # Position is integrated analytically from real elapsed time
+        # (dist(t) = v0*t - 0.5*a*t^2, the constant-deceleration solution of
+        # v' = -a) rather than stepping per tick, so a late/early
+        # asyncio.sleep wakeup changes *when* a frame lands but not the
+        # total distance/duration of the coast.
+        speed0 = (vx0 * vx0 + vy0 * vy0) ** 0.5
+        if speed0 < 1e-9:
+            self.momentum_task = None
+            return
+        ux, uy = vx0 / speed0, vy0 / speed0
+        speed0_per_sec = speed0 * TICK_HZ
+
+        t_stop = speed0_per_sec / DECELERATION
+        decel = DECELERATION
+        if t_stop > MAX_COAST_DURATION:
+            t_stop = MAX_COAST_DURATION
+            decel = speed0_per_sec / t_stop  # still hits zero velocity exactly at t_stop
+
+        start = time.monotonic()
+        last_dist = 0.0
         try:
-            while (vx * vx + vy * vy) ** 0.5 >= STOP_VELOCITY:
-                self.emit_scroll(vx, vy)
-                vx *= DECAY
-                vy *= DECAY
+            while True:
+                elapsed = time.monotonic() - start
+                if elapsed >= t_stop:
+                    break
+                dist = speed0_per_sec * elapsed - 0.5 * decel * elapsed * elapsed
+                delta = dist - last_dist
+                last_dist = dist
+                self.emit_scroll(ux * delta, uy * delta)
                 await asyncio.sleep(TICK_INTERVAL)
         except asyncio.CancelledError:
             pass
