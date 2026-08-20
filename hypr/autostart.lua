@@ -43,11 +43,34 @@ o.window({ class = "Spotify" }, { workspace = "5 silent" })
 
 -- Chrome is also single-instance and restores multiple windows from one
 -- process, so the one-shot exec-workspace rule above can't target it either
--- -- match by class like the other forking apps.
+-- (that rule is tied to a single pid and only catches one window, but
+-- session restore can map several from the same process) -- and a plain
+-- class-based static o.window rule is too broad: it would apply forever, so
+-- every later window you open with Chrome already running (Ctrl+N, "New
+-- window", etc.) would also get shoved onto workspace 2 instead of landing
+-- wherever you're currently working.
 --
 -- --restore-last-session forces the previously open windows (and their
 -- pinned tabs) back open on launch -- the Default profile's "on startup"
 -- setting is left at its default (Open the New Tab page), which alone
 -- would just open one blank window and never bring the second window back.
 o.launch_on_start("google-chrome-stable --restore-last-session")
-o.window({ class = "google-chrome" }, { workspace = "2 silent" })
+
+-- Fix: only pin Chrome windows to workspace 2 for a few seconds right after
+-- login -- long enough to catch every window session-restore maps, but short
+-- enough that a window you open later in the day just lands on whatever
+-- workspace you're on, like any other app.
+local chrome_startup_grace_period = false
+
+hl.on("hyprland.start", function()
+  chrome_startup_grace_period = true
+  hl.timer(function()
+    chrome_startup_grace_period = false
+  end, { timeout = 10000, type = "oneshot" })
+end)
+
+hl.on("window.open", function(w)
+  if w ~= nil and w.class == "google-chrome" and chrome_startup_grace_period then
+    hl.dispatch(hl.dsp.window.move({ workspace = "2", follow = false, window = w }))
+  end
+end)
