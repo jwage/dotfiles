@@ -1,0 +1,38 @@
+mode = "dark"
+
+# Colors below are pulled directly from traderspost.io's real CSS custom
+# properties (fetched from the site's build bundle), not guessed -- each is
+# labeled with its source token. A few slots this schema needs (yellow,
+# orange, magenta, brown) have no brand-defined equivalent on the site, so
+# those are marked NOT BRAND and were chosen to harmonize with the palette;
+# swap them for exact values if design has official ones.
+
+accent = "#0984e3"          # --color-primary-500
+selection = "#30404f"       # --color-dark-600
+muted = "#405263"           # --color-dark-500
+
+background = "#151f27"        # --color-dark-900
+dark_background = "#0e141a"   # --color-dark-950
+darker_background = "#000000" # --color-black
+lighter_background = "#233644" # --color-dark-700
+
+foreground = "#f3f6f8"        # --color-dark-50
+dark_foreground = "#647685"   # --color-dark-400
+light_foreground = "#d8dee3"  # --color-dark-100
+bright_foreground = "#ffffff" # --color-white
+
+red = "#bd3f3b"      # --color-danger
+yellow = "#e8b339"   # NOT BRAND -- no warning/yellow token on the site
+orange = "#e08a3c"   # NOT BRAND -- no orange token on the site
+green = "#43984d"    # --color-success
+cyan = "#34c3ff"     # --color-secondary-500
+blue = "#0984e3"     # --color-primary-500
+magenta = "#b378c7"  # NOT BRAND -- no magenta/purple token on the site
+brown = "#8a6d52"    # NOT BRAND -- no brown token on the site
+
+bright_red = "#bd3f3b"
+bright_yellow = "#e8b339"
+bright_green = "#43984d"
+bright_cyan = "#46b9f4"    # --color-light-500 -- a real, distinct lighter-blue brand token
+bright_blue = "#0984e3"
+bright_magenta = "#b378c7"

@@ -42,6 +42,7 @@ Linux / Omarchy only:
 | `omarchy/defaults/agent` | Default coding agent |
 | `omarchy/plugins/jwage.workspaces/` | Custom bar widget: per-workspace app icons + window switching |
 | `omarchy/plugins/jwage.battery-sleep/` | Suspends after idle on battery only; never sleeps on AC |
+| `omarchy/themes/traderspost/` | Custom Omarchy theme using TradersPost's real brand palette (pulled from traderspost.io's CSS — see `colors.toml` comments for which values are verified brand colors vs. filled in) and a wallpaper combining an AI-generated futuristic candlestick-chart background with the real TradersPost logo composited on top |
 | `bash/bashrc` | Kept as a fallback for non-interactive/bash-specific tooling (sources Arch bootstrap, then `shell/env.sh`); zsh is the default login shell |
 | `XCompose` | Compose key sequences |
 | `etc/modprobe.d/hid_apple.conf` | `fnmode=1` so the Apple keyboard's F-row acts as media/brightness keys by default (macOS-style); hold Fn for literal F1-F12 |
