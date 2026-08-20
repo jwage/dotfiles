@@ -11,13 +11,23 @@ tooling allow. Source of truth for hex values:
 |---|---|
 | Desktop wallpaper | Symlink + `osascript` (see root `install.sh`) |
 | Dark mode + blue accent | `mac/apply-theme.sh` via `defaults` + System Events |
-| Cursor / VS Code chrome + integrated terminal | Shared `cursor/settings.json` (`[Sunburst]` overrides) |
+| **Terminal.app profile** | Import `traderspost.terminal`, set as default/startup profile |
+| Cursor integrated terminal | Shared `cursor/settings.json` (`[Sunburst]` overrides) |
 | Shell prompt colors | Shared `starship/starship.toml` |
-| iTerm2 preset file | Symlinked to `~/Documents/traderspost.itermcolors` |
+| iTerm2 preset (optional) | Only if iTerm.app is installed — symlinked to `~/Documents/traderspost.itermcolors` |
+
+## Terminal.app
+
+`install.sh` symlinks `mac/traderspost.terminal` to
+`~/Documents/traderspost.terminal`, imports it on first run (`open`), and sets
+it as the default + startup profile via `defaults write com.apple.Terminal`.
+
+Open a **new** Terminal window (or restart Terminal) after `install.sh` to see
+the TradersPost colors. Existing windows keep their old profile.
 
 ## Manual (one-time)
 
-**iTerm2** (if you use it instead of Cursor's terminal):
+**iTerm2** (only if you switch away from Terminal.app):
 
 1. iTerm2 → Settings → Profiles → Colors
 2. Color Presets → Import…
@@ -32,5 +42,5 @@ tooling allow. Source of truth for hex values:
 ## Not possible on macOS
 
 Finder, menu bar, and most native apps ignore custom brand palettes.
-Only wallpaper, accent preset, dark mode, and per-app theming (Cursor,
-iTerm2, Starship) are covered here.
+Only wallpaper, accent preset, dark mode, and per-app theming (Terminal,
+Cursor, Starship) are covered here.

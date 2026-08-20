@@ -1,16 +1,39 @@
 #!/bin/bash
 # macOS TradersPost theme bits install.sh cannot symlink: system appearance,
-# accent color, and an iTerm2 preset path. Palette values match
+# Terminal.app profile, and optional iTerm2 preset. Palette values match
 # omarchy/themes/traderspost/colors.toml.
 
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TERMINAL_PREFS="$HOME/Library/Preferences/com.apple.Terminal.plist"
+TERMINAL_PROFILE_NAME="TradersPost"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "skip    mac/apply-theme.sh (not macOS)"
   exit 0
 fi
+
+link_theme_file() {
+  local repo_relative="$1"
+  local dest="$2"
+  local src="$REPO_DIR/$repo_relative"
+
+  if [[ -L "$dest" && "$(realpath "$dest")" == "$(realpath "$src")" ]]; then
+    echo "ok      $dest"
+    return
+  fi
+
+  mkdir -p "$(dirname "$dest")"
+
+  if [[ -e "$dest" || -L "$dest" ]]; then
+    mv "$dest" "$dest.orig"
+    echo "backed up $dest -> $dest.orig"
+  fi
+
+  ln -s "$src" "$dest"
+  echo "linked  $dest -> $src"
+}
 
 # Dark mode + blue accent (closest preset to --color-primary-500 / #0984e3).
 defaults write -g AppleInterfaceStyle Dark 2>/dev/null || true
@@ -22,18 +45,27 @@ else
   echo "set     macOS appearance defaults (log out/in if accent does not update)"
 fi
 
-ITERM_PRESET="$HOME/Documents/traderspost.itermcolors"
-mkdir -p "$(dirname "$ITERM_PRESET")"
-if [[ -L "$ITERM_PRESET" && "$(realpath "$ITERM_PRESET")" == "$(realpath "$REPO_DIR/mac/traderspost.itermcolors")" ]]; then
-  echo "ok      $ITERM_PRESET"
-elif [[ -e "$ITERM_PRESET" || -L "$ITERM_PRESET" ]]; then
-  mv "$ITERM_PRESET" "$ITERM_PRESET.orig"
-  echo "backed up $ITERM_PRESET -> $ITERM_PRESET.orig"
-  ln -s "$REPO_DIR/mac/traderspost.itermcolors" "$ITERM_PRESET"
-  echo "linked  $ITERM_PRESET -> $REPO_DIR/mac/traderspost.itermcolors"
+TERMINAL_PROFILE="$HOME/Documents/traderspost.terminal"
+link_theme_file "mac/traderspost.terminal" "$TERMINAL_PROFILE"
+
+terminal_profile_exists() {
+  [[ -f "$TERMINAL_PREFS" ]] \
+    && /usr/libexec/PlistBuddy -c "Print :'Window Settings':$TERMINAL_PROFILE_NAME" "$TERMINAL_PREFS" >/dev/null 2>&1
+}
+
+if ! terminal_profile_exists; then
+  open "$TERMINAL_PROFILE"
+  echo "import  Terminal.app profile -> $TERMINAL_PROFILE_NAME (opened $TERMINAL_PROFILE)"
 else
-  ln -s "$REPO_DIR/mac/traderspost.itermcolors" "$ITERM_PRESET"
-  echo "linked  $ITERM_PRESET -> $REPO_DIR/mac/traderspost.itermcolors"
+  echo "ok      Terminal.app profile $TERMINAL_PROFILE_NAME"
 fi
 
-echo "iTerm2:  Profiles -> Colors -> Color Presets -> Import -> $ITERM_PRESET"
+defaults write com.apple.Terminal "Default Window Settings" -string "$TERMINAL_PROFILE_NAME"
+defaults write com.apple.Terminal "Startup Window Settings" -string "$TERMINAL_PROFILE_NAME"
+echo "set     Terminal.app default profile -> $TERMINAL_PROFILE_NAME"
+
+ITERM_PRESET="$HOME/Documents/traderspost.itermcolors"
+if [[ -d "/Applications/iTerm.app" || -d "$HOME/Applications/iTerm.app" ]]; then
+  link_theme_file "mac/traderspost.itermcolors" "$ITERM_PRESET"
+  echo "iTerm2:  Profiles -> Colors -> Color Presets -> Import -> $ITERM_PRESET"
+fi
