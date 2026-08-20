@@ -15,9 +15,6 @@
         },
         {
           "id": "jwage.workspaces"
-        },
-        {
-          "id": "omarchy.active-window"
         }
       ],
       "center": [
@@ -43,9 +40,6 @@
       "right": [
         {
           "id": "omarchy.tray"
-        },
-        {
-          "id": "omarchy.media"
         },
         {
           "id": "omarchy.agents"
