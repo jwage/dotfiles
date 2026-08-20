@@ -5,7 +5,9 @@ Personal config shared between this Mac and [Omarchy](https://omarchy.org)
 doesn't mean starting over.
 
 `install.sh` is OS-aware: it installs the shared editor/dev/shell files on
-both machines and skips Linux desktop files on macOS.
+both machines and skips Linux desktop files on macOS (except the TradersPost
+theme wallpaper -- `install.sh` symlinks it into `~/Pictures/Wallpapers/` and
+sets it as the macOS desktop background).
 
 Only actual customizations are tracked here, not Omarchy's stock defaults.
 Each Linux desktop file was diffed against Omarchy's shipped default/skel

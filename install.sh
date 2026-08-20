@@ -82,6 +82,15 @@ done
 
 if [[ "$OS" == "Darwin" ]]; then
   echo "skip    Linux-only Hyprland/Omarchy/bashrc/XCompose"
+  # Same TradersPost wallpaper as the Omarchy theme -- PNG only; colors.toml
+  # is Hyprland/Omarchy-specific and stays Linux-only above.
+  MAC_WALLPAPER="$HOME/Pictures/Wallpapers/traderspost.png"
+  link_one "omarchy/themes/traderspost/backgrounds/traderspost.png:$MAC_WALLPAPER"
+  if osascript -e "tell application \"System Events\" to tell every desktop to set picture to \"$(realpath "$MAC_WALLPAPER")\""; then
+    echo "set     macOS desktop wallpaper -> $MAC_WALLPAPER"
+  else
+    echo "skip    macOS desktop wallpaper (osascript failed -- pick $MAC_WALLPAPER in System Settings)" >&2
+  fi
 else
   for entry in "${LINUX_LINKS[@]}"; do
     link_one "$entry"
