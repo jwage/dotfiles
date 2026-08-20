@@ -21,5 +21,11 @@ hl.monitor({ output = "DP-1", mode = "preferred", position = "auto", scale = 1.5
 -- Portrait/rotated secondary monitor (transform: 1 = 90°, 3 = 270°).
 -- hl.monitor({ output = "DP-2", mode = "preferred", position = "auto", scale = 1, transform = 1 })
 
--- Keep workspace 2 on the big external monitor instead of the laptop panel.
-hl.workspace_rule({ workspace = "2", monitor = "DP-1" })
+-- Only workspace 1 lives on the laptop panel; every other workspace belongs
+-- on the external monitor. Without an explicit rule per workspace, Hyprland
+-- assigns a newly-created workspace to whichever monitor currently has
+-- focus, so workspaces end up scattered across screens unpredictably.
+hl.workspace_rule({ workspace = "1", monitor = "eDP-1" })
+for i = 2, 10 do
+  hl.workspace_rule({ workspace = tostring(i), monitor = "DP-1" })
+end
