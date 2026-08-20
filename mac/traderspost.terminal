@@ -2,246 +2,220 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>ANSIColor0</key>
-	<dict>
-		<key>Blue Component</key>
-		<real>0.10196078431372549</real>
-		<key>Color Space</key>
-		<string>sRGB</string>
-		<key>Green Component</key>
-		<real>0.0784313725490196</real>
-		<key>Red Component</key>
-		<real>0.054901960784313725</real>
-	</dict>
-	<key>ANSIColor1</key>
-	<dict>
-		<key>Blue Component</key>
-		<real>0.23137254901960785</real>
-		<key>Color Space</key>
-		<string>sRGB</string>
-		<key>Green Component</key>
-		<real>0.24705882352941178</real>
-		<key>Red Component</key>
-		<real>0.7411764705882353</real>
-	</dict>
-	<key>ANSIColor2</key>
-	<dict>
-		<key>Blue Component</key>
-		<real>0.30196078431372547</real>
-		<key>Color Space</key>
-		<string>sRGB</string>
-		<key>Green Component</key>
-		<real>0.596078431372549</real>
-		<key>Red Component</key>
-		<real>0.2627450980392157</real>
-	</dict>
-	<key>ANSIColor3</key>
-	<dict>
-		<key>Blue Component</key>
-		<real>0.2235294117647059</real>
-		<key>Color Space</key>
-		<string>sRGB</string>
-		<key>Green Component</key>
-		<real>0.7019607843137254</real>
-		<key>Red Component</key>
-		<real>0.9098039215686274</real>
-	</dict>
-	<key>ANSIColor4</key>
-	<dict>
-		<key>Blue Component</key>
-		<real>0.8901960784313725</real>
-		<key>Color Space</key>
-		<string>sRGB</string>
-		<key>Green Component</key>
-		<real>0.5176470588235295</real>
-		<key>Red Component</key>
-		<real>0.03529411764705882</real>
-	</dict>
-	<key>ANSIColor5</key>
-	<dict>
-		<key>Blue Component</key>
-		<real>0.7803921568627451</real>
-		<key>Color Space</key>
-		<string>sRGB</string>
-		<key>Green Component</key>
-		<real>0.47058823529411764</real>
-		<key>Red Component</key>
-		<real>0.7019607843137254</real>
-	</dict>
-	<key>ANSIColor6</key>
-	<dict>
-		<key>Blue Component</key>
-		<real>1</real>
-		<key>Color Space</key>
-		<string>sRGB</string>
-		<key>Green Component</key>
-		<real>0.7647058823529411</real>
-		<key>Red Component</key>
-		<real>0.20392156862745098</real>
-	</dict>
-	<key>ANSIColor7</key>
-	<dict>
-		<key>Blue Component</key>
-		<real>0.9725490196078431</real>
-		<key>Color Space</key>
-		<string>sRGB</string>
-		<key>Green Component</key>
-		<real>0.9647058823529412</real>
-		<key>Red Component</key>
-		<real>0.9529411764705882</real>
-	</dict>
-	<key>ANSIColor8</key>
-	<dict>
-		<key>Blue Component</key>
-		<real>0.5215686274509804</real>
-		<key>Color Space</key>
-		<string>sRGB</string>
-		<key>Green Component</key>
-		<real>0.4627450980392157</real>
-		<key>Red Component</key>
-		<real>0.39215686274509803</real>
-	</dict>
-	<key>ANSIColor9</key>
-	<dict>
-		<key>Blue Component</key>
-		<real>0.23137254901960785</real>
-		<key>Color Space</key>
-		<string>sRGB</string>
-		<key>Green Component</key>
-		<real>0.24705882352941178</real>
-		<key>Red Component</key>
-		<real>0.7411764705882353</real>
-	</dict>
-	<key>ANSIColor10</key>
-	<dict>
-		<key>Blue Component</key>
-		<real>0.30196078431372547</real>
-		<key>Color Space</key>
-		<string>sRGB</string>
-		<key>Green Component</key>
-		<real>0.596078431372549</real>
-		<key>Red Component</key>
-		<real>0.2627450980392157</real>
-	</dict>
-	<key>ANSIColor11</key>
-	<dict>
-		<key>Blue Component</key>
-		<real>0.2235294117647059</real>
-		<key>Color Space</key>
-		<string>sRGB</string>
-		<key>Green Component</key>
-		<real>0.7019607843137254</real>
-		<key>Red Component</key>
-		<real>0.9098039215686274</real>
-	</dict>
-	<key>ANSIColor12</key>
-	<dict>
-		<key>Blue Component</key>
-		<real>0.8901960784313725</real>
-		<key>Color Space</key>
-		<string>sRGB</string>
-		<key>Green Component</key>
-		<real>0.5176470588235295</real>
-		<key>Red Component</key>
-		<real>0.03529411764705882</real>
-	</dict>
-	<key>ANSIColor13</key>
-	<dict>
-		<key>Blue Component</key>
-		<real>0.7803921568627451</real>
-		<key>Color Space</key>
-		<string>sRGB</string>
-		<key>Green Component</key>
-		<real>0.47058823529411764</real>
-		<key>Red Component</key>
-		<real>0.7019607843137254</real>
-	</dict>
-	<key>ANSIColor14</key>
-	<dict>
-		<key>Blue Component</key>
-		<real>0.9568627450980393</real>
-		<key>Color Space</key>
-		<string>sRGB</string>
-		<key>Green Component</key>
-		<real>0.7254901960784313</real>
-		<key>Red Component</key>
-		<real>0.27450980392156865</real>
-	</dict>
-	<key>ANSIColor15</key>
-	<dict>
-		<key>Blue Component</key>
-		<real>1</real>
-		<key>Color Space</key>
-		<string>sRGB</string>
-		<key>Green Component</key>
-		<real>1</real>
-		<key>Red Component</key>
-		<real>1</real>
-	</dict>
+	<key>ANSIBlackColor</key>
+	<data>
+	YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMS
+	AAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGjCwwTVSRudWxs0w0ODxARElVO
+	U1JHQlxOU0NvbG9yU3BhY2VWJGNsYXNzTxApMC4wNTQ5MDE5NjA3OCAwLjA3ODQzMTM3
+	MjU1IDAuMTAxOTYwNzg0MwAQAoAC0hQVFhdaJGNsYXNzbmFtZVgkY2xhc3Nlc1dOU0Nv
+	bG9yohYYWE5TT2JqZWN0CBEaJCkyN0lMUVNXXWRqd36qrK6zvsfP0gAAAAAAAAEBAAAA
+	AAAAABkAAAAAAAAAAAAAAAAAAADb
+	</data>
+	<key>ANSIBlueColor</key>
+	<data>
+	YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMS
+	AAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGjCwwTVSRudWxs0w0ODxARElVO
+	U1JHQlxOU0NvbG9yU3BhY2VWJGNsYXNzTxAoMC4wMzUyOTQxMTc2NSAwLjUxNzY0NzA1
+	ODggMC44OTAxOTYwNzg0ABACgALSFBUWF1okY2xhc3NuYW1lWCRjbGFzc2VzV05TQ29s
+	b3KiFhhYTlNPYmplY3QIERokKTI3SUxRU1ddZGp3fqmrrbK9xs7RAAAAAAAAAQEAAAAA
+	AAAAGQAAAAAAAAAAAAAAAAAAANo=
+	</data>
+	<key>ANSIBrightBlackColor</key>
+	<data>
+	YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMS
+	AAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGjCwwTVSRudWxs0w0ODxARElVO
+	U1JHQlxOU0NvbG9yU3BhY2VWJGNsYXNzTxAmMC4zOTIxNTY4NjI3IDAuNDYyNzQ1MDk4
+	IDAuNTIxNTY4NjI3NQAQAoAC0hQVFhdaJGNsYXNzbmFtZVgkY2xhc3Nlc1dOU0NvbG9y
+	ohYYWE5TT2JqZWN0CBEaJCkyN0lMUVNXXWRqd36nqauwu8TMzwAAAAAAAAEBAAAAAAAA
+	ABkAAAAAAAAAAAAAAAAAAADY
+	</data>
+	<key>ANSIBrightBlueColor</key>
+	<data>
+	YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMS
+	AAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGjCwwTVSRudWxs0w0ODxARElVO
+	U1JHQlxOU0NvbG9yU3BhY2VWJGNsYXNzTxAoMC4wMzUyOTQxMTc2NSAwLjUxNzY0NzA1
+	ODggMC44OTAxOTYwNzg0ABACgALSFBUWF1okY2xhc3NuYW1lWCRjbGFzc2VzV05TQ29s
+	b3KiFhhYTlNPYmplY3QIERokKTI3SUxRU1ddZGp3fqmrrbK9xs7RAAAAAAAAAQEAAAAA
+	AAAAGQAAAAAAAAAAAAAAAAAAANo=
+	</data>
+	<key>ANSIBrightCyanColor</key>
+	<data>
+	YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMS
+	AAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGjCwwTVSRudWxs0w0ODxARElVO
+	U1JHQlxOU0NvbG9yU3BhY2VWJGNsYXNzTxAnMC4yNzQ1MDk4MDM5IDAuNzI1NDkwMTk2
+	MSAwLjk1Njg2Mjc0NTEAEAKAAtIUFRYXWiRjbGFzc25hbWVYJGNsYXNzZXNXTlNDb2xv
+	cqIWGFhOU09iamVjdAgRGiQpMjdJTFFTV11kand+qKqssbzFzdAAAAAAAAABAQAAAAAA
+	AAAZAAAAAAAAAAAAAAAAAAAA2Q==
+	</data>
+	<key>ANSIBrightGreenColor</key>
+	<data>
+	YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMS
+	AAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGjCwwTVSRudWxs0w0ODxARElVO
+	U1JHQlxOU0NvbG9yU3BhY2VWJGNsYXNzTxAmMC4yNjI3NDUwOTggMC41OTYwNzg0MzE0
+	IDAuMzAxOTYwNzg0MwAQAoAC0hQVFhdaJGNsYXNzbmFtZVgkY2xhc3Nlc1dOU0NvbG9y
+	ohYYWE5TT2JqZWN0CBEaJCkyN0lMUVNXXWRqd36nqauwu8TMzwAAAAAAAAEBAAAAAAAA
+	ABkAAAAAAAAAAAAAAAAAAADY
+	</data>
+	<key>ANSIBrightMagentaColor</key>
+	<data>
+	YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMS
+	AAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGjCwwTVSRudWxs0w0ODxARElVO
+	U1JHQlxOU0NvbG9yU3BhY2VWJGNsYXNzTxAnMC43MDE5NjA3ODQzIDAuNDcwNTg4MjM1
+	MyAwLjc4MDM5MjE1NjkAEAKAAtIUFRYXWiRjbGFzc25hbWVYJGNsYXNzZXNXTlNDb2xv
+	cqIWGFhOU09iamVjdAgRGiQpMjdJTFFTV11kand+qKqssbzFzdAAAAAAAAABAQAAAAAA
+	AAAZAAAAAAAAAAAAAAAAAAAA2Q==
+	</data>
+	<key>ANSIBrightRedColor</key>
+	<data>
+	YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMS
+	AAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGjCwwTVSRudWxs0w0ODxARElVO
+	U1JHQlxOU0NvbG9yU3BhY2VWJGNsYXNzTxAmMC43NDExNzY0NzA2IDAuMjQ3MDU4ODIz
+	NSAwLjIzMTM3MjU0OQAQAoAC0hQVFhdaJGNsYXNzbmFtZVgkY2xhc3Nlc1dOU0NvbG9y
+	ohYYWE5TT2JqZWN0CBEaJCkyN0lMUVNXXWRqd36nqauwu8TMzwAAAAAAAAEBAAAAAAAA
+	ABkAAAAAAAAAAAAAAAAAAADY
+	</data>
+	<key>ANSIBrightWhiteColor</key>
+	<data>
+	YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMS
+	AAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGjCwwTVSRudWxs0w0ODxARElVO
+	U1JHQlxOU0NvbG9yU3BhY2VWJGNsYXNzRjEgMSAxABACgALSFBUWF1okY2xhc3NuYW1l
+	WCRjbGFzc2VzV05TQ29sb3KiFhhYTlNPYmplY3QIERokKTI3SUxRU1ddZGp3foWHiY6Z
+	oqqtAAAAAAAAAQEAAAAAAAAAGQAAAAAAAAAAAAAAAAAAALY=
+	</data>
+	<key>ANSIBrightYellowColor</key>
+	<data>
+	YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMS
+	AAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGjCwwTVSRudWxs0w0ODxARElVO
+	U1JHQlxOU0NvbG9yU3BhY2VWJGNsYXNzTxAnMC45MDk4MDM5MjE2IDAuNzAxOTYwNzg0
+	MyAwLjIyMzUyOTQxMTgAEAKAAtIUFRYXWiRjbGFzc25hbWVYJGNsYXNzZXNXTlNDb2xv
+	cqIWGFhOU09iamVjdAgRGiQpMjdJTFFTV11kand+qKqssbzFzdAAAAAAAAABAQAAAAAA
+	AAAZAAAAAAAAAAAAAAAAAAAA2Q==
+	</data>
+	<key>ANSICyanColor</key>
+	<data>
+	YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMS
+	AAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGjCwwTVSRudWxs0w0ODxARElVO
+	U1JHQlxOU0NvbG9yU3BhY2VWJGNsYXNzTxAcMC4yMDM5MjE1Njg2IDAuNzY0NzA1ODgy
+	NCAxABACgALSFBUWF1okY2xhc3NuYW1lWCRjbGFzc2VzV05TQ29sb3KiFhhYTlNPYmpl
+	Y3QIERokKTI3SUxRU1ddZGp3fp2foaaxusLFAAAAAAAAAQEAAAAAAAAAGQAAAAAAAAAA
+	AAAAAAAAAM4=
+	</data>
+	<key>ANSIGreenColor</key>
+	<data>
+	YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMS
+	AAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGjCwwTVSRudWxs0w0ODxARElVO
+	U1JHQlxOU0NvbG9yU3BhY2VWJGNsYXNzTxAmMC4yNjI3NDUwOTggMC41OTYwNzg0MzE0
+	IDAuMzAxOTYwNzg0MwAQAoAC0hQVFhdaJGNsYXNzbmFtZVgkY2xhc3Nlc1dOU0NvbG9y
+	ohYYWE5TT2JqZWN0CBEaJCkyN0lMUVNXXWRqd36nqauwu8TMzwAAAAAAAAEBAAAAAAAA
+	ABkAAAAAAAAAAAAAAAAAAADY
+	</data>
+	<key>ANSIMagentaColor</key>
+	<data>
+	YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMS
+	AAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGjCwwTVSRudWxs0w0ODxARElVO
+	U1JHQlxOU0NvbG9yU3BhY2VWJGNsYXNzTxAnMC43MDE5NjA3ODQzIDAuNDcwNTg4MjM1
+	MyAwLjc4MDM5MjE1NjkAEAKAAtIUFRYXWiRjbGFzc25hbWVYJGNsYXNzZXNXTlNDb2xv
+	cqIWGFhOU09iamVjdAgRGiQpMjdJTFFTV11kand+qKqssbzFzdAAAAAAAAABAQAAAAAA
+	AAAZAAAAAAAAAAAAAAAAAAAA2Q==
+	</data>
+	<key>ANSIRedColor</key>
+	<data>
+	YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMS
+	AAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGjCwwTVSRudWxs0w0ODxARElVO
+	U1JHQlxOU0NvbG9yU3BhY2VWJGNsYXNzTxAmMC43NDExNzY0NzA2IDAuMjQ3MDU4ODIz
+	NSAwLjIzMTM3MjU0OQAQAoAC0hQVFhdaJGNsYXNzbmFtZVgkY2xhc3Nlc1dOU0NvbG9y
+	ohYYWE5TT2JqZWN0CBEaJCkyN0lMUVNXXWRqd36nqauwu8TMzwAAAAAAAAEBAAAAAAAA
+	ABkAAAAAAAAAAAAAAAAAAADY
+	</data>
+	<key>ANSIWhiteColor</key>
+	<data>
+	YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMS
+	AAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGjCwwTVSRudWxs0w0ODxARElVO
+	U1JHQlxOU0NvbG9yU3BhY2VWJGNsYXNzTxAnMC45NTI5NDExNzY1IDAuOTY0NzA1ODgy
+	NCAwLjk3MjU0OTAxOTYAEAKAAtIUFRYXWiRjbGFzc25hbWVYJGNsYXNzZXNXTlNDb2xv
+	cqIWGFhOU09iamVjdAgRGiQpMjdJTFFTV11kand+qKqssbzFzdAAAAAAAAABAQAAAAAA
+	AAAZAAAAAAAAAAAAAAAAAAAA2Q==
+	</data>
+	<key>ANSIYellowColor</key>
+	<data>
+	YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMS
+	AAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGjCwwTVSRudWxs0w0ODxARElVO
+	U1JHQlxOU0NvbG9yU3BhY2VWJGNsYXNzTxAnMC45MDk4MDM5MjE2IDAuNzAxOTYwNzg0
+	MyAwLjIyMzUyOTQxMTgAEAKAAtIUFRYXWiRjbGFzc25hbWVYJGNsYXNzZXNXTlNDb2xv
+	cqIWGFhOU09iamVjdAgRGiQpMjdJTFFTV11kand+qKqssbzFzdAAAAAAAAABAQAAAAAA
+	AAAZAAAAAAAAAAAAAAAAAAAA2Q==
+	</data>
 	<key>BackgroundColor</key>
-	<dict>
-		<key>Blue Component</key>
-		<real>0.10196078431372549</real>
-		<key>Color Space</key>
-		<string>sRGB</string>
-		<key>Green Component</key>
-		<real>0.0784313725490196</real>
-		<key>Red Component</key>
-		<real>0.054901960784313725</real>
-	</dict>
+	<data>
+	YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMS
+	AAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGjCwwTVSRudWxs0w0ODxARElVO
+	U1JHQlxOU0NvbG9yU3BhY2VWJGNsYXNzTxApMC4wNTQ5MDE5NjA3OCAwLjA3ODQzMTM3
+	MjU1IDAuMTAxOTYwNzg0MwAQAoAC0hQVFhdaJGNsYXNzbmFtZVgkY2xhc3Nlc1dOU0Nv
+	bG9yohYYWE5TT2JqZWN0CBEaJCkyN0lMUVNXXWRqd36qrK6zvsfP0gAAAAAAAAEBAAAA
+	AAAAABkAAAAAAAAAAAAAAAAAAADb
+	</data>
 	<key>CursorColor</key>
-	<dict>
-		<key>Blue Component</key>
-		<real>1</real>
-		<key>Color Space</key>
-		<string>sRGB</string>
-		<key>Green Component</key>
-		<real>0.7647058823529411</real>
-		<key>Red Component</key>
-		<real>0.20392156862745098</real>
-	</dict>
+	<data>
+	YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMS
+	AAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGjCwwTVSRudWxs0w0ODxARElVO
+	U1JHQlxOU0NvbG9yU3BhY2VWJGNsYXNzTxAcMC4yMDM5MjE1Njg2IDAuNzY0NzA1ODgy
+	NCAxABACgALSFBUWF1okY2xhc3NuYW1lWCRjbGFzc2VzV05TQ29sb3KiFhhYTlNPYmpl
+	Y3QIERokKTI3SUxRU1ddZGp3fp2foaaxusLFAAAAAAAAAQEAAAAAAAAAGQAAAAAAAAAA
+	AAAAAAAAAM4=
+	</data>
+	<key>DynamicANSIForegroundColors</key>
+	<false/>
+	<key>Font</key>
+	<data>
+	YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMS
+	AAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGkCwwVFlUkbnVsbNQNDg8QERIT
+	FFZOU1NpemVYTlNmRmxhZ3NWTlNOYW1lViRjbGFzcyNAKgAAAAAAABAQgAKAA18QJC5B
+	cHBsZVN5c3RlbVVJRm9udE1vbm9zcGFjZWQtUmVndWxhctIXGBkaWiRjbGFzc25hbWVY
+	JGNsYXNzZXNWTlNGb250ohkbWE5TT2JqZWN0CBEaJCkyN0lMUVNYXmdud36FjpCSlLvA
+	y9Tb3gAAAAAAAAEBAAAAAAAAABwAAAAAAAAAAAAAAAAAAADn
+	</data>
+	<key>FontAntialias</key>
+	<true/>
+	<key>FontHeightSpacing</key>
+	<real>1</real>
+	<key>FontWidthSpacing</key>
+	<integer>1</integer>
 	<key>ProfileCurrentVersion</key>
-	<real>2.07</real>
+	<real>2.0899999999999999</real>
 	<key>SelectionColor</key>
-	<dict>
-		<key>Blue Component</key>
-		<real>0.30980392156862746</real>
-		<key>Color Space</key>
-		<string>sRGB</string>
-		<key>Green Component</key>
-		<real>0.25098039215686274</real>
-		<key>Red Component</key>
-		<real>0.18823529411764706</real>
-	</dict>
+	<data>
+	YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMS
+	AAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGjCwwTVSRudWxs0w0ODxARElVO
+	U1JHQlxOU0NvbG9yU3BhY2VWJGNsYXNzTxAnMC4xODgyMzUyOTQxIDAuMjUwOTgwMzky
+	MiAwLjMwOTgwMzkyMTYAEAKAAtIUFRYXWiRjbGFzc25hbWVYJGNsYXNzZXNXTlNDb2xv
+	cqIWGFhOU09iamVjdAgRGiQpMjdJTFFTV11kand+qKqssbzFzdAAAAAAAAABAQAAAAAA
+	AAAZAAAAAAAAAAAAAAAAAAAA2Q==
+	</data>
 	<key>TextBoldColor</key>
-	<dict>
-		<key>Blue Component</key>
-		<real>0.9725490196078431</real>
-		<key>Color Space</key>
-		<string>sRGB</string>
-		<key>Green Component</key>
-		<real>0.9647058823529412</real>
-		<key>Red Component</key>
-		<real>0.9529411764705882</real>
-	</dict>
+	<data>
+	YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMS
+	AAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGjCwwTVSRudWxs0w0ODxARElVO
+	U1JHQlxOU0NvbG9yU3BhY2VWJGNsYXNzTxAnMC45NTI5NDExNzY1IDAuOTY0NzA1ODgy
+	NCAwLjk3MjU0OTAxOTYAEAKAAtIUFRYXWiRjbGFzc25hbWVYJGNsYXNzZXNXTlNDb2xv
+	cqIWGFhOU09iamVjdAgRGiQpMjdJTFFTV11kand+qKqssbzFzdAAAAAAAAABAQAAAAAA
+	AAAZAAAAAAAAAAAAAAAAAAAA2Q==
+	</data>
 	<key>TextColor</key>
-	<dict>
-		<key>Blue Component</key>
-		<real>0.9725490196078431</real>
-		<key>Color Space</key>
-		<string>sRGB</string>
-		<key>Green Component</key>
-		<real>0.9647058823529412</real>
-		<key>Red Component</key>
-		<real>0.9529411764705882</real>
-	</dict>
+	<data>
+	YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMS
+	AAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGjCwwTVSRudWxs0w0ODxARElVO
+	U1JHQlxOU0NvbG9yU3BhY2VWJGNsYXNzTxAnMC45NTI5NDExNzY1IDAuOTY0NzA1ODgy
+	NCAwLjk3MjU0OTAxOTYAEAKAAtIUFRYXWiRjbGFzc25hbWVYJGNsYXNzZXNXTlNDb2xv
+	cqIWGFhOU09iamVjdAgRGiQpMjdJTFFTV11kand+qKqssbzFzdAAAAAAAAABAQAAAAAA
+	AAAZAAAAAAAAAAAAAAAAAAAA2Q==
+	</data>
+	<key>columnCount</key>
+	<integer>120</integer>
 	<key>name</key>
 	<string>TradersPost</string>
-	<key>shellProgram</key>
-	<string>/bin/zsh</string>
+	<key>rowCount</key>
+	<integer>30</integer>
 	<key>type</key>
 	<string>Window Settings</string>
-	<key>useBrightBold</key>
-	<true/>
 </dict>
 </plist>

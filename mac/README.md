@@ -11,19 +11,29 @@ tooling allow. Source of truth for hex values:
 |---|---|
 | Desktop wallpaper | Symlink + `osascript` (see root `install.sh`) |
 | Dark mode + blue accent | `mac/apply-theme.sh` via `defaults` + System Events |
-| **Terminal.app profile** | Import `traderspost.terminal`, set as default/startup profile |
+| **Terminal.app profile** | Built from `traderspost.itermcolors` via `build-terminal-profile.swift`, imported, set as default |
 | Cursor integrated terminal | Shared `cursor/settings.json` (`[Sunburst]` overrides) |
 | Shell prompt colors | Shared `starship/starship.toml` |
 | iTerm2 preset (optional) | Only if iTerm.app is installed — symlinked to `~/Documents/traderspost.itermcolors` |
 
 ## Terminal.app
 
-`install.sh` symlinks `mac/traderspost.terminal` to
-`~/Documents/traderspost.terminal`, imports it on first run (`open`), and sets
-it as the default + startup profile via `defaults write com.apple.Terminal`.
+`install.sh` runs `mac/build-terminal-profile.swift` to generate a modern
+`.terminal` file (NSKeyedArchiver color blobs — hand-written RGB dicts are
+rejected as corrupt on current macOS). The profile is symlinked to
+`~/Documents/traderspost.terminal`, imported with `open`, and set as the
+default + startup profile.
 
-Open a **new** Terminal window (or restart Terminal) after `install.sh` to see
-the TradersPost colors. Existing windows keep their old profile.
+Open a **new** Terminal window (or restart Terminal) after `install.sh` to
+see the TradersPost colors. Existing windows keep their old profile.
+
+To rebuild after palette changes, edit `traderspost.itermcolors` (or
+`omarchy/themes/traderspost/colors.toml` and sync the iterm file), then:
+
+```sh
+~/Repositories/dotfiles/mac/build-terminal-profile.swift
+~/Repositories/dotfiles/mac/apply-theme.sh
+```
 
 ## Manual (one-time)
 

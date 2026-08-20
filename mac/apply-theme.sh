@@ -8,6 +8,7 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TERMINAL_PREFS="$HOME/Library/Preferences/com.apple.Terminal.plist"
 TERMINAL_PROFILE_NAME="TradersPost"
+TERMINAL_FALLBACK_PROFILE="Basic"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "skip    mac/apply-theme.sh (not macOS)"
@@ -45,6 +46,11 @@ else
   echo "set     macOS appearance defaults (log out/in if accent does not update)"
 fi
 
+if ! xcrun swift "$REPO_DIR/mac/build-terminal-profile.swift"; then
+  echo "skip    Terminal.app profile build failed (install Xcode Command Line Tools)" >&2
+  exit 0
+fi
+
 TERMINAL_PROFILE="$HOME/Documents/traderspost.terminal"
 link_theme_file "mac/traderspost.terminal" "$TERMINAL_PROFILE"
 
@@ -53,11 +59,22 @@ terminal_profile_exists() {
     && /usr/libexec/PlistBuddy -c "Print :'Window Settings':$TERMINAL_PROFILE_NAME" "$TERMINAL_PREFS" >/dev/null 2>&1
 }
 
+terminal_default_profile() {
+  defaults read com.apple.Terminal "Default Window Settings" 2>/dev/null || true
+}
+
+if [[ "$(terminal_default_profile)" == "$TERMINAL_PROFILE_NAME" ]] && ! terminal_profile_exists; then
+  defaults write com.apple.Terminal "Default Window Settings" -string "$TERMINAL_FALLBACK_PROFILE"
+  defaults write com.apple.Terminal "Startup Window Settings" -string "$TERMINAL_FALLBACK_PROFILE"
+  echo "reset   Terminal.app default -> $TERMINAL_FALLBACK_PROFILE (missing $TERMINAL_PROFILE_NAME profile)"
+fi
+
 if ! terminal_profile_exists; then
   open "$TERMINAL_PROFILE"
   echo "import  Terminal.app profile -> $TERMINAL_PROFILE_NAME (opened $TERMINAL_PROFILE)"
 else
-  echo "ok      Terminal.app profile $TERMINAL_PROFILE_NAME"
+  open "$TERMINAL_PROFILE"
+  echo "refresh Terminal.app profile -> $TERMINAL_PROFILE_NAME"
 fi
 
 defaults write com.apple.Terminal "Default Window Settings" -string "$TERMINAL_PROFILE_NAME"

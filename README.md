@@ -58,7 +58,8 @@ macOS only:
 
 | Path | What it is |
 |---|---|
-| `mac/apply-theme.sh` | Dark mode, blue accent, Terminal.app profile import/default (`install.sh` calls this) |
+| `mac/build-terminal-profile.swift` | Builds `traderspost.terminal` from `traderspost.itermcolors` (required on macOS 26+) |
+| `mac/apply-theme.sh` | Dark mode, blue accent, Terminal profile build/import/default (`install.sh` calls this) |
 | `mac/traderspost.terminal` | Terminal.app profile (imported from `~/Documents/traderspost.terminal`) |
 | `mac/traderspost.itermcolors` | Optional iTerm2 preset if iTerm is installed |
 | `mac/README.md` | What macOS can and cannot theme vs Omarchy |
