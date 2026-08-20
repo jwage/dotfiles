@@ -73,19 +73,38 @@ FLICK_MIN_VELOCITY = 6.0
 # lower = steadier, less prone to launching momentum off one noisy sample).
 VELOCITY_EMA_ALPHA = 0.5
 
-# A touch that starts while the mouse was physically moving within this
-# many seconds beforehand never counts as a scroll touch for its whole
-# lifetime. A deliberate scroll swipe happens with the mouse sitting still
-# on the desk; a finger resting on the shell while gripping/dragging the
-# mouse around is what this filters out, regardless of where on the shell
-# it happens to land.
+# No touch may accumulate arm-distance while the mouse last moved within
+# this many seconds -- checked continuously for the whole life of a touch,
+# not just when it first landed. A deliberate scroll swipe happens with the
+# mouse sitting still on the desk; two fingers already resting on the shell
+# before the mouse starts moving will drift against the touch surface from
+# ordinary hand biomechanics during arm motion, with nothing about when
+# that touch started to distinguish it, so this has to be a standing
+# condition rather than a one-time check at touch-down.
 POINTER_STILL_DEBOUNCE = 0.15
+
+# Same idea, but for clicks: clicking the Magic Mouse mechanically deflects
+# the shell, which the touch sensor can report as a real (and sometimes
+# fast -- not just slow drift) position jump. No touch may accumulate
+# arm-distance within this many seconds of a click, so the click's own
+# artifact never gets read as part of a swipe.
+CLICK_COOLDOWN = 0.25
 
 # Raw ABS_MT_POSITION units a touch must travel (cumulative straight-line
 # distance from where it landed) before it's treated as a deliberate swipe
-# rather than incidental/barely-there contact. Also the main defense (along
-# with the debounce above) against a light touch producing scroll output.
+# rather than incidental/barely-there contact.
 ARM_DISTANCE = 100
+
+# ...but only if it covers that distance within this many seconds. Real
+# swipes are fast: ARM_DISTANCE is covered in well under 100ms. A finger
+# that's merely resting on the shell (while clicking, repositioning between
+# windows, or just idly touching it) drifts the same total distance from
+# natural hand tremor, just spread over a much longer time -- without a
+# time bound, any sufficiently long, idle contact eventually accumulates
+# past ARM_DISTANCE no matter how slowly it drifts. If the window elapses
+# first, the origin rebases to the current position and the clock restarts,
+# so slow drift never accumulates across an indefinitely long touch.
+ARM_TIME_WINDOW = 0.2
 
 HI_RES_PER_NOTCH = 120
 
@@ -125,7 +144,7 @@ class ScrollState:
     def __init__(self, ui):
         self.ui = ui
         self.current_slot = 0
-        # slot -> {"id", "x", "y", "origin_x", "origin_y", "ignored", "armed"}
+        # slot -> {"id", "x", "y", "origin_x", "origin_y", "origin_t", "armed"}
         self.slots = {}
         self.pending_dx = 0
         self.pending_dy = 0
@@ -137,9 +156,13 @@ class ScrollState:
         self.accum_hi_y = 0.0
         self.momentum_task = None
         self.last_pointer_move_t = None
+        self.last_click_t = None
 
     def note_pointer_move(self):
         self.last_pointer_move_t = time.monotonic()
+
+    def note_click(self):
+        self.last_click_t = time.monotonic()
 
     def cancel_momentum(self):
         # Matches macOS: moving the pointer (to another window, say) kills
@@ -153,7 +176,7 @@ class ScrollState:
         active = [
             s
             for s, info in self.slots.items()
-            if info.get("id", -1) != -1 and info.get("armed") and not info.get("ignored")
+            if info.get("id", -1) != -1 and info.get("armed")
         ]
         return min(active) if active else None
 
@@ -173,14 +196,14 @@ class ScrollState:
             prev = info.get("x")
             info["x"] = value
             self._maybe_arm(info)
-            if prev is not None and info.get("armed") and not info.get("ignored"):
+            if prev is not None and info.get("armed"):
                 if self.current_slot == self.primary_slot():
                     self.pending_dx += value - prev
         elif code == e.ABS_MT_POSITION_Y:
             prev = info.get("y")
             info["y"] = value
             self._maybe_arm(info)
-            if prev is not None and info.get("armed") and not info.get("ignored"):
+            if prev is not None and info.get("armed"):
                 if self.current_slot == self.primary_slot():
                     self.pending_dy += value - prev
 
@@ -190,33 +213,47 @@ class ScrollState:
             and time.monotonic() - self.last_pointer_move_t < POINTER_STILL_DEBOUNCE
         )
 
+    def _recently_clicked(self):
+        return self.last_click_t is not None and time.monotonic() - self.last_click_t < CLICK_COOLDOWN
+
+    def _blocked(self):
+        return self._recently_moved() or self._recently_clicked()
+
+    def _rebase_origin(self, info):
+        info["origin_x"] = info["x"]
+        info["origin_y"] = info["y"]
+        info["origin_t"] = time.monotonic()
+
     def _maybe_arm(self, info):
         if "x" not in info or "y" not in info or info.get("id", -1) == -1:
             return
         if "origin_x" not in info:
-            info["origin_x"] = info["x"]
-            info["origin_y"] = info["y"]
-            info["ignored"] = self._recently_moved()
+            self._rebase_origin(info)
             info["armed"] = False
             return
         if info.get("armed"):
             return
-        if info["ignored"]:
-            if self._recently_moved():
-                return
-            # The debounce window has expired while this touch is still
-            # down -- a touch that starts right as the mouse stops moving
-            # shouldn't be penalized for the rest of its lifetime just
-            # because of when it happened to land. Treat it as a fresh
-            # candidate from here, resetting the origin so arming distance
-            # is measured from now rather than jumping on the stale delta.
-            info["ignored"] = False
-            info["origin_x"] = info["x"]
-            info["origin_y"] = info["y"]
+        if self._blocked():
+            # The mouse is moving right now, or was just clicked -- a real
+            # swipe doesn't happen under those conditions, so distance is
+            # never allowed to accumulate across them. This is checked on
+            # every update, not just when the touch first landed: two
+            # fingers already resting on the shell before the mouse starts
+            # moving drift against the touch surface from ordinary hand
+            # biomechanics during arm motion, and would otherwise cross
+            # ARM_DISTANCE purely from that, with nothing about how the
+            # touch itself started to catch it.
+            self._rebase_origin(info)
             return
         dist = ((info["x"] - info["origin_x"]) ** 2 + (info["y"] - info["origin_y"]) ** 2) ** 0.5
         if dist >= ARM_DISTANCE:
             info["armed"] = True
+            return
+        if time.monotonic() - info["origin_t"] > ARM_TIME_WINDOW:
+            # Covering ARM_DISTANCE took too long to be a deliberate swipe --
+            # rebase so slow drift from a long, idle touch never accumulates
+            # across it.
+            self._rebase_origin(info)
 
     def handle_syn(self):
         primary = self.primary_slot()
@@ -349,6 +386,7 @@ async def run():
                         state.note_pointer_move()
                     ui.write(e.EV_REL, event.code, event.value)
                 elif event.type == e.EV_KEY:
+                    state.note_click()
                     ui.write(e.EV_KEY, event.code, event.value)
                 elif event.type == e.EV_ABS:
                     state.handle_abs(event.code, event.value)
