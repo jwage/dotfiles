@@ -89,24 +89,6 @@ BarWidget {
     return String(toplevel.wayland.appId || "")
   }
 
-  // One line per window on this workspace, shown as a hover tooltip so you
-  // can see what's where without switching to it first.
-  function workspaceTooltip(workspace) {
-    if (!workspace) return ""
-
-    try {
-      var items = workspace.toplevels.values
-      var lines = []
-      for (var i = 0; i < items.length; i++) {
-        var label = String(items[i]["title"] || root.windowAppId(items[i]) || "").trim()
-        if (label) lines.push(label)
-      }
-      return lines.join("\n")
-    } catch (e) {
-      return ""
-    }
-  }
-
   // App icons come from the window's app id. A window's app id and its
   // .desktop file's Icon= often differ (e.g. appId "cursor" but
   // Icon=co.anysphere.cursor, appId "signal" but Icon=signal-desktop), so
@@ -162,7 +144,6 @@ BarWidget {
         bar: root.bar
         text: numberText
         labelVisible: false
-        tooltipText: root.workspaceTooltip(workspace)
         opacity: occupied || focused ? 1 : 0.5
         horizontalMargin: 6
         verticalPadding: 6
