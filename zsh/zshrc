@@ -20,6 +20,10 @@ fi
 # starship is not on PATH yet.
 export ZSH="$HOME/.oh-my-zsh"
 plugins=(git zsh-autosuggestions zsh-syntax-highlighting)
+# Fall back to completion-based suggestions when history has no match --
+# on a fresh machine (little accumulated $HISTFILE yet) the default
+# history-only strategy has almost nothing to suggest from.
+ZSH_AUTOSUGGEST_STRATEGY=(history completion)
 if command -v starship >/dev/null 2>&1; then
   ZSH_THEME=""
 else
