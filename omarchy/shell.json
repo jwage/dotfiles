@@ -39,7 +39,12 @@
       ],
       "right": [
         {
-          "id": "omarchy.tray"
+          "id": "jwage.tray",
+          "pinned": [
+            "Slack_status_icon_1",
+            "1Password_status_icon_1"
+          ],
+          "hidden": []
         },
         {
           "id": "omarchy.agents"
