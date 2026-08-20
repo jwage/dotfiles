@@ -15,11 +15,10 @@ BarWidget {
   // actually running inside it — it has no .desktop entry of its own, so
   // reuse the marks the agent-usage panel already ships. Which mark applies
   // to a given window is resolved per window by find-agent-process, since
-  // two agent windows can be running different CLIs at once; the configured
-  // default agent is only a fallback while that resolution is pending or
-  // for a CLI with no shipped mark.
+  // two agent windows can be running different CLIs at once — the
+  // configured default agent says nothing about any particular window, so
+  // it is deliberately not consulted at all.
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
-  property string defaultAgentId: ""
   readonly property var agentIconIds: ["claude", "codex", "fireworks"]
   // Agents omarchy ships no assets/<id>.svg for, mapped to an icon their
   // own desktop app installed into the icon theme. Keeps a resolved agent
@@ -47,17 +46,6 @@ BarWidget {
   // cheap `ps` + `awk`.
   property var _probeQueue: []
   property bool _probeBusy: false
-
-  Process {
-    id: defaultAgentProc
-    command: ["omarchy-default-agent"]
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: root.defaultAgentId = text.trim()
-    }
-  }
-
-  Component.onCompleted: defaultAgentProc.running = true
 
   // Drop a window's cached agent as it closes. objectRemovedPre (rather than
   // Post, or a sweep of the live set) is deliberate: it still has the
@@ -220,15 +208,20 @@ BarWidget {
       // loop turn, fully outside this evaluation.
       Qt.callLater(function() { root.resolveAgentForWindow(address) })
       var resolved = root.resolvedAgentByAddress[address]
-      // Only guess the default agent's mark while resolution is still
-      // pending (resolved === undefined). Once it lands, trust it: a CLI
-      // that resolved cleanly but ships no mark of its own (grok, gemini, …)
-      // should fall through to a generic icon, not borrow another agent's.
-      var agentId = resolved === undefined ? root.defaultAgentId : resolved
-      if (root.agentIconIds.indexOf(agentId) !== -1)
-        return Util.fileUrl(root.omarchyPath + "/shell/plugins/agents/assets/" + agentId + ".svg")
 
-      var themeIconName = root.agentThemeIconNames[agentId]
+      // Draw nothing at all until the probe answers, rather than guessing
+      // from the configured default agent. The guess is wrong for every
+      // window not running that agent — it is what made a Codex window show
+      // Claude's mark — and when the default has not loaded yet it degrades
+      // to the generic executable glyph, so a brand-new window flashed a
+      // meaningless icon either way. Probes finish in well under a second,
+      // so the slot just stays blank until the real mark is known.
+      if (resolved === undefined) return ""
+
+      if (root.agentIconIds.indexOf(resolved) !== -1)
+        return Util.fileUrl(root.omarchyPath + "/shell/plugins/agents/assets/" + resolved + ".svg")
+
+      var themeIconName = root.agentThemeIconNames[resolved]
       if (themeIconName) {
         var agentThemeIcon = Quickshell.iconPath(themeIconName, true)
         if (agentThemeIcon.length > 0) return agentThemeIcon
