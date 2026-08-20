@@ -113,6 +113,9 @@ o.bind("SUPER + P", "Cmd+P passthrough", send_ctrl_shortcut_once("P"))
 hl.unbind("SUPER + F")
 o.bind("SUPER + F", "Find (Cmd+F)", send_ctrl_shortcut_once("F"))
 
+-- Free (no default macOS meaning to protect): redo, to go with undo above.
+o.bind("SUPER + SHIFT + Z", "Redo (Cmd+Shift+Z)", send_ctrl_shortcut_once("Z", "CTRL SHIFT"))
+
 -- Every other SUPER+<letter> Omarchy doesn't already claim for a window-
 -- manager action: forward as Ctrl+<letter>, so SUPER consistently plays the
 -- role Cmd does on macOS instead of switching to Ctrl for ordinary app
