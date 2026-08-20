@@ -14,7 +14,7 @@
 [init]
 	defaultBranch = master
 [pull]
-	rebase = true 			 # Rebase (instead of merge) on pull
+	rebase = false 			 # Merge (instead of rebase) on pull
 [push]
 	autoSetupRemote = true   # Automatically set upstream branch on push
 [diff]
