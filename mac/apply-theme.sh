@@ -36,9 +36,35 @@ link_theme_file() {
   echo "linked  $dest -> $src"
 }
 
+link_theme_dir() {
+  local repo_relative="$1"
+  local dest="$2"
+  local src="$REPO_DIR/$repo_relative"
+
+  if [[ -L "$dest" && "$(realpath "$dest")" == "$(realpath "$src")" ]]; then
+    echo "ok      $dest"
+    return
+  fi
+
+  mkdir -p "$(dirname "$dest")"
+
+  if [[ -e "$dest" || -L "$dest" ]]; then
+    mv "$dest" "$dest.orig"
+    echo "backed up $dest -> $dest.orig"
+  fi
+
+  ln -s "$src" "$dest"
+  echo "linked  $dest -> $src"
+}
+
 # Dark mode + blue accent (closest preset to --color-primary-500 / #0984e3).
 defaults write -g AppleInterfaceStyle Dark 2>/dev/null || true
 defaults write -g AppleAccentColor -int 5 2>/dev/null || true
+# Blue text selection/highlight in native lists (pairs with accent).
+defaults write -g AppleHighlightColor -string "5 3290559999 352321535" 2>/dev/null || true
+defaults write -g AppleSidebarIconTintingEnabled -bool true 2>/dev/null || true
+# Menu bar can pick up TradersPost wallpaper tint when enabled in System Settings.
+defaults write -g AppleEnableMenuBarTint -bool true 2>/dev/null || true
 
 if osascript -e 'tell application "System Events" to tell appearance preferences to set dark mode to true' 2>/dev/null; then
   echo "set     macOS appearance -> Dark, accent -> Blue"
@@ -86,3 +112,14 @@ if [[ -d "/Applications/iTerm.app" || -d "$HOME/Applications/iTerm.app" ]]; then
   link_theme_file "mac/traderspost.itermcolors" "$ITERM_PRESET"
   echo "iTerm2:  Profiles -> Colors -> Color Presets -> Import -> $ITERM_PRESET"
 fi
+
+if bash "$REPO_DIR/mac/build-chrome-theme.sh"; then
+  CHROME_THEME="$HOME/Documents/traderspost-chrome-theme"
+  link_theme_dir "mac/chrome/traderspost-theme" "$CHROME_THEME"
+  echo "chrome:  chrome://extensions -> Developer mode -> Load unpacked -> $CHROME_THEME"
+  if [[ -d "/Applications/Google Chrome.app" ]]; then
+    open -a "Google Chrome" "chrome://extensions/" 2>/dev/null || true
+  fi
+fi
+
+echo "system:  Settings -> Appearance -> enable menu bar tint if the bar stays flat gray"

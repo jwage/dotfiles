@@ -5,16 +5,50 @@ These files apply as much of the TradersPost palette as macOS and our shared
 tooling allow. Source of truth for hex values:
 `omarchy/themes/traderspost/colors.toml`.
 
+## What matches Omarchy vs what cannot
+
+| Layer | TradersPost colors? | Notes |
+|---|---|---|
+| Wallpaper | Yes | Same PNG as Omarchy |
+| Terminal.app | Yes | Full ANSI + background palette |
+| Cursor | Yes | Sidebar, tabs, status bar, integrated terminal |
+| Starship prompt | Yes | Cyan / blue / red from palette |
+| **Google Chrome** | Yes | Unpacked theme extension (toolbar, tabs, omnibox, new tab) |
+| macOS accent + highlights | Partial | Blue accent only — not custom navy chrome |
+| Finder, Mail, Notes, etc. | **No** | Apple fixed dark gray; no public API for brand colors |
+| Menu bar / Dock | Partial | Wallpaper tint + blue accent; not `#151f27` |
+
+There is no supported way to paint every macOS window frame, sidebar, and
+toolbar with TradersPost navy the way Hyprland + Omarchy do on Linux. Chrome
+and Cursor are the main gaps we can close on the Mac.
+
 ## Automated (`install.sh`)
 
 | What | How |
 |---|---|
 | Desktop wallpaper | Symlink + `osascript` (see root `install.sh`) |
-| Dark mode + blue accent | `mac/apply-theme.sh` via `defaults` + System Events |
+| Dark mode + blue accent + highlights | `mac/apply-theme.sh` via `defaults` + System Events |
 | **Terminal.app profile** | Built from `traderspost.itermcolors` via `build-terminal-profile.swift`, imported, set as default |
+| **Google Chrome theme** | Built via `build-chrome-theme.sh`, symlinked to `~/Documents/traderspost-chrome-theme` |
 | Cursor integrated terminal | Shared `cursor/settings.json` (`[Sunburst]` overrides) |
 | Shell prompt colors | Shared `starship/starship.toml` |
-| iTerm2 preset (optional) | Only if iTerm.app is installed — symlinked to `~/Documents/traderspost.itermcolors` |
+| iTerm2 preset (optional) | Only if iTerm.app is installed |
+
+## Google Chrome (one-time)
+
+`install.sh` builds theme assets and symlinks the unpacked extension to
+`~/Documents/traderspost-chrome-theme`. Enable it once:
+
+1. Open `chrome://extensions`
+2. Turn on **Developer mode**
+3. **Load unpacked** → select `~/Documents/traderspost-chrome-theme`
+4. Confirm **TradersPost** appears and is enabled
+
+Chrome remembers the extension across restarts. Re-run `install.sh` after
+palette changes, then click **Reload** on the extension card.
+
+Toolbar/tabs/omnibox use TradersPost navy + cyan; the new-tab page uses the
+same wallpaper as the desktop.
 
 ## Terminal.app
 
@@ -35,22 +69,22 @@ To rebuild after palette changes, edit `traderspost.itermcolors` (or
 ~/Repositories/dotfiles/mac/apply-theme.sh
 ```
 
-## Manual (one-time)
+## System Settings worth checking
+
+If the menu bar and window chrome still look flat black/gray:
+
+1. **System Settings → Appearance**
+   - Appearance: **Dark**
+   - Accent color: **Blue**
+   - Enable **Show colors in menu bar** / wallpaper tint if your macOS version
+     offers it (pairs with the TradersPost wallpaper)
+2. Log out and back in if accent/highlight defaults from `install.sh` did not
+   apply to Finder selections immediately.
+
+## Manual (optional)
 
 **iTerm2** (only if you switch away from Terminal.app):
 
 1. iTerm2 → Settings → Profiles → Colors
 2. Color Presets → Import…
 3. Pick `~/Documents/traderspost.itermcolors`
-4. Set the preset on your default profile
-
-**System Settings** (if `defaults` did not stick):
-
-- Appearance → Dark
-- Accent color → Blue (closest to TradersPost primary `#0984e3`)
-
-## Not possible on macOS
-
-Finder, menu bar, and most native apps ignore custom brand palettes.
-Only wallpaper, accent preset, dark mode, and per-app theming (Terminal,
-Cursor, Starship) are covered here.

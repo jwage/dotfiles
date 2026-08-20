@@ -6,9 +6,9 @@ doesn't mean starting over.
 
 `install.sh` is OS-aware: it installs the shared editor/dev/shell files on
 both machines and skips Linux desktop files on macOS. On macOS it still
-applies the TradersPost wallpaper, system dark mode + blue accent, Cursor
-chrome/terminal colors, Starship prompt colors, and a Terminal.app profile — see
-[`mac/README.md`](mac/README.md).
+applies the TradersPost wallpaper, system dark mode + blue accent, Terminal
+and **Google Chrome** theming, Cursor/Starship colors — see
+[`mac/README.md`](mac/README.md) for what macOS cannot recolor (Finder, etc.).
 
 Only actual customizations are tracked here, not Omarchy's stock defaults.
 Each Linux desktop file was diffed against Omarchy's shipped default/skel
@@ -58,6 +58,8 @@ macOS only:
 
 | Path | What it is |
 |---|---|
+| `mac/build-chrome-theme.sh` | Builds Chrome theme icons + new-tab wallpaper from `traderspost.png` |
+| `mac/chrome/traderspost-theme/` | Unpacked Google Chrome theme (load once from `~/Documents/traderspost-chrome-theme`) |
 | `mac/build-terminal-profile.swift` | Builds `traderspost.terminal` from `traderspost.itermcolors` (required on macOS 26+) |
 | `mac/apply-theme.sh` | Dark mode, blue accent, Terminal profile build/import/default (`install.sh` calls this) |
 | `mac/traderspost.terminal` | Terminal.app profile (imported from `~/Documents/traderspost.terminal`) |
