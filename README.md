@@ -48,6 +48,7 @@ Linux / Omarchy only:
 | `etc/modprobe.d/hid_magicmouse.conf` | Magic Mouse scroll tuning (`scroll_acceleration=0 scroll_speed=32`) — see `hypr/input.lua` for why |
 | `etc/udev/rules.d/99-uinput.rules` | Lets the `input` group open `/dev/uinput` so the scroll daemon below can run as a normal user |
 | `magicmouse-scroll/` | Userspace daemon giving the Magic Mouse real macOS-style momentum scrolling — libinput won't run touch-gesture scrolling on a device it classifies as a mouse, so this grabs it exclusively, passes pointer/clicks through, and computes kinetic scroll from the raw touch data itself. `daemon.py` → `~/.local/bin/magicmouse-scroll-daemon`, `magicmouse-scroll.service` is a systemd `--user` unit. See `hypr/input.lua`'s `magicmouse-scroll-daemon` device block for the paired pointer/scroll tuning |
+| `dconf/interface.ini` | GTK/GNOME interface settings (theme, cursor, `text-scaling-factor`) — dconf lives in a private binary database, not a plain file, so this is a `dconf dump`/`dconf load` snapshot rather than a symlink; `install.sh` applies it with `dconf load` |
 
 ## What's deliberately excluded
 

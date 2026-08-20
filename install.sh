@@ -104,6 +104,14 @@ if [[ "$OS" != "Darwin" ]]; then
       echo "ok      $dest"
       continue
     fi
+    # sudo can't prompt for a password without a TTY (e.g. run from an
+    # agent) -- report and move on instead of letting set -e abort the
+    # rest of the script (dconf, git/config, Cursor extensions) over a
+    # skippable step the user can just rerun from a real terminal.
+    if ! sudo -n true 2>/dev/null && [[ ! -t 0 ]]; then
+      echo "skip    $dest (sudo needs a password and no TTY is available; rerun from a terminal)"
+      continue
+    fi
     if sudo test -e "$dest" -o -L "$dest"; then
       sudo mv "$dest" "$dest.orig"
       echo "backed up $dest -> $dest.orig"
@@ -111,6 +119,16 @@ if [[ "$OS" != "Darwin" ]]; then
     sudo ln -sf "$src" "$dest"
     echo "linked  $dest -> $src (reload the module/udev rules or reboot to apply)"
   done
+fi
+
+# dconf/GSettings live in a private binary database (~/.config/dconf/user),
+# not a plain file, so there's nothing to symlink -- dump/load is the
+# standard way to version-control it. Safe to always re-apply: same values
+# in, no-op; this only covers the interface keys we've deliberately tuned
+# (text scaling, theme, cursor), not a full dconf dump.
+if [[ "$OS" != "Darwin" ]] && command -v dconf >/dev/null; then
+  dconf load /org/gnome/desktop/interface/ < "$REPO_DIR/dconf/interface.ini"
+  echo "loaded  /org/gnome/desktop/interface/ <- dconf/interface.ini"
 fi
 
 # git/config is NOT symlinked: `gh auth setup-git` writes a machine-specific
