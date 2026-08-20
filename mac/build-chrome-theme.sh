@@ -1,7 +1,6 @@
 #!/bin/bash
 # Build Chrome theme assets (icons + frame/toolbar/tab/ntp images).
-# Chrome on current macOS builds often ignores colors-only themes; it needs
-# theme_frame/theme_toolbar PNGs. Safe to re-run.
+# Uses visibly blue brand colors (#0984e3 / #34c3ff) — dark navy reads as gray.
 
 set -euo pipefail
 
@@ -22,6 +21,14 @@ theme_dir = Path("${THEME_DIR}")
 images = theme_dir / "images"
 images.mkdir(parents=True, exist_ok=True)
 
+# TradersPost brand from colors.toml
+PRIMARY = (9, 132, 227)       # #0984e3
+PRIMARY_DARK = (9, 84, 160)
+CYAN = (52, 195, 255)         # #34c3ff
+NAVY = (9, 40, 90)            # blue-tinted tab strip (not flat gray)
+DARK = (14, 20, 26)           # #0e141a
+INSET = (21, 31, 39)          # #151f27
+
 
 def write_png(path: Path, width: int, height: int, rgb: tuple[int, int, int]) -> None:
     red, green, blue = rgb
@@ -39,11 +46,39 @@ def write_png(path: Path, width: int, height: int, rgb: tuple[int, int, int]) ->
     path.write_bytes(png)
 
 
-write_png(images / "theme_frame.png", 800, 36, (21, 31, 39))
-write_png(images / "theme_toolbar.png", 800, 88, (35, 54, 68))
-write_png(images / "theme_tab_background.png", 256, 36, (14, 20, 26))
-write_png(images / "theme_tab_background_inactive.png", 256, 36, (14, 20, 26))
-write_png(images / "theme_button_background.png", 64, 64, (9, 132, 227))
+def write_gradient_png(
+    path: Path,
+    width: int,
+    height: int,
+    top: tuple[int, int, int],
+    bottom: tuple[int, int, int],
+) -> None:
+    rows = []
+    for y in range(height):
+        t = y / max(height - 1, 1)
+        rgb = tuple(
+            int(top[index] + (bottom[index] - top[index]) * t)
+            for index in range(3)
+        )
+        rows.append(b"\x00" + bytes(rgb) * width)
+    raw = b"".join(rows)
+
+    def chunk(tag: bytes, data: bytes) -> bytes:
+        crc = zlib.crc32(tag + data) & 0xFFFFFFFF
+        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", crc)
+
+    png = b"\x89PNG\r\n\x1a\n"
+    png += chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+    png += chunk(b"IDAT", zlib.compress(raw, 9))
+    png += chunk(b"IEND", b"")
+    path.write_bytes(png)
+
+
+write_png(images / "theme_frame.png", 800, 36, NAVY)
+write_gradient_png(images / "theme_toolbar.png", 800, 88, PRIMARY, PRIMARY_DARK)
+write_png(images / "theme_tab_background.png", 256, 36, DARK)
+write_png(images / "theme_tab_background_inactive.png", 256, 36, DARK)
+write_png(images / "theme_button_background.png", 64, 64, CYAN)
 PY
 
 if [[ -f "$WALLPAPER" ]]; then
@@ -77,6 +112,8 @@ PY
 fi
 
 required=(
+  "$THEME_DIR/manifest.json"
+  "$THEME_DIR/background.js"
   "$ICONS_DIR/icon16.png"
   "$ICONS_DIR/icon48.png"
   "$ICONS_DIR/icon128.png"

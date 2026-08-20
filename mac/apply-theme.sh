@@ -112,7 +112,8 @@ if bash "$REPO_DIR/mac/build-chrome-theme.sh"; then
   CHROME_THEME="$HOME/Documents/traderspost-chrome-theme"
   copy_theme_dir "mac/chrome/traderspost-theme" "$CHROME_THEME"
   echo "chrome:  chrome://extensions -> Developer mode -> Load unpacked -> $CHROME_THEME"
-  echo "chrome:  if TradersPost is already loaded, click Reload on that card (v1.1.0)"
+  echo "chrome:  if TradersPost is already loaded, click Reload on that card (v1.2.0)"
+  echo "chrome:  the toolbar should be TradersPost primary blue (#0984e3), not gray"
   echo "chrome:  turn off Settings -> Appearance -> Chrome colors (it overrides themes)"
   if [[ -d "/Applications/Google Chrome.app" ]]; then
     open -a "Google Chrome" "chrome://extensions/" 2>/dev/null || true

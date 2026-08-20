@@ -1,64 +1,17 @@
 {
     "manifest_version": 3,
     "name": "TradersPost",
-    "description": "TradersPost brand chrome for Google Chrome. Palette from omarchy/themes/traderspost/colors.toml.",
-    "version": "1.1.0",
+    "description": "TradersPost brand chrome for Google Chrome. Applies via chrome.theme API on every start.",
+    "version": "1.2.0",
+    "permissions": [
+        "theme"
+    ],
+    "background": {
+        "service_worker": "background.js"
+    },
     "icons": {
         "16": "icons/icon16.png",
         "48": "icons/icon48.png",
         "128": "icons/icon128.png"
-    },
-    "theme": {
-        "colors": {
-            "frame": [21, 31, 39],
-            "frame_inactive": [14, 20, 26],
-            "frame_incognito": [14, 20, 26],
-            "frame_incognito_inactive": [21, 31, 39],
-            "background_tab": [14, 20, 26],
-            "background_tab_inactive": [14, 20, 26],
-            "toolbar": [35, 54, 68],
-            "toolbar_button_icon": [243, 246, 248],
-            "toolbar_field": [21, 31, 39],
-            "toolbar_field_border": [9, 132, 227],
-            "toolbar_field_focus": [21, 31, 39],
-            "toolbar_field_text": [243, 246, 248],
-            "toolbar_field_text_focus": [243, 246, 248],
-            "toolbar_text": [216, 222, 227],
-            "tab_text": [243, 246, 248],
-            "tab_background_text": [216, 222, 227],
-            "tab_background_text_inactive": [100, 118, 133],
-            "bookmark_text": [243, 246, 248],
-            "button_background": [9, 132, 227],
-            "control_background": [35, 54, 68],
-            "ntp_background": [14, 20, 26],
-            "ntp_text": [243, 246, 248],
-            "ntp_link": [52, 195, 255],
-            "ntp_header": [243, 246, 248],
-            "ntp_section": [35, 54, 68],
-            "omnibox_background": [21, 31, 39],
-            "omnibox_text": [243, 246, 248],
-            "omnibox_selection_background": [48, 64, 79],
-            "omnibox_results_background": [21, 31, 39],
-            "omnibox_results_text": [243, 246, 248],
-            "sidebar_background": [21, 31, 39],
-            "sidebar_text": [216, 222, 227],
-            "sidebar_border": [9, 132, 227]
-        },
-        "tints": {
-            "buttons": [0.58, 0.5, 0.7],
-            "frame_inactive": [0.58, 0.5, 0.7],
-            "frame_incognito_inactive": [0.58, 0.5, 0.7],
-            "background_tab": [0.58, 0.5, 0.7]
-        },
-        "properties": {
-            "ntp_background_alignment": "bottom",
-            "ntp_background_repeat": "no-repeat"
-        },
-        "images": {
-            "theme_frame": "images/theme_frame.png",
-            "theme_toolbar": "images/theme_toolbar.png",
-            "theme_tab_background": "images/theme_tab_background.png",
-            "theme_ntp_background": "images/ntp_background.png"
-        }
     }
 }

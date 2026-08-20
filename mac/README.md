@@ -36,28 +36,28 @@ and Cursor are the main gaps we can close on the Mac.
 
 ## Google Chrome (one-time, then Reload after updates)
 
-`install.sh` builds theme assets (frame/toolbar PNGs are required — colors
-alone look like default black/gray on current Chrome) and **copies** the
-extension folder to `~/Documents/traderspost-chrome-theme`.
+The extension uses **`chrome.theme.update()`** on every browser start (v1.2.0+).
+The toolbar is **primary blue `#0984e3`** — if Chrome still looks flat gray, the
+extension is not active or Chrome Colors is overriding it.
+
+`install.sh` builds theme assets and **copies** the folder to
+`~/Documents/traderspost-chrome-theme`.
 
 1. Open `chrome://extensions`
 2. Turn on **Developer mode**
 3. **Load unpacked** → select `~/Documents/traderspost-chrome-theme`
-4. Confirm **TradersPost** is enabled
+4. Confirm **TradersPost** is **enabled** (toggle on)
+5. **Chrome → Settings → Appearance** — set theme to **Default** / remove **Chrome colors**
 
-After dotfiles updates: open `chrome://extensions` and click **Reload** on
-TradersPost.
+After dotfiles updates: **Reload** the TradersPost card on `chrome://extensions`.
 
-If the toolbar still looks like default gray/black:
+**Verify it worked:** the area under the tabs (bookmarks/address bar) should be
+clearly **blue**, with a dark navy tab strip above it. New tab shows the
+TradersPost wallpaper.
 
-1. **Chrome → Settings → Appearance** — reset/remove any **Chrome colors**
-   theme (that overrides extension themes)
-2. Confirm the TradersPost card on `chrome://extensions` has no errors
-3. Re-run `~/Repositories/dotfiles/mac/apply-theme.sh` and **Load unpacked**
-   again (or Reload)
-
-The tab strip uses TradersPost navy (`#233644` toolbar, `#0984e3` accents);
-it is intentionally dark, but should read as blue-navy rather than flat gray.
+If the card shows errors, or the toolbar stays Apple-gray, the extension is not
+running — Load unpacked again and pick the **copied** folder in Documents, not
+the dotfiles repo path.
 
 ## Terminal.app
 
