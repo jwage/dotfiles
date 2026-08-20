@@ -14,14 +14,31 @@ BarWidget {
   // session launches under (see omarchy-agent), regardless of which CLI is
   // actually running inside it — it has no .desktop entry of its own, so
   // reuse the marks the agent-usage panel already ships. Which mark applies
-  // to a given window is resolved per pid by find-agent-process, since two
-  // agent windows can be running different CLIs at once; the configured
+  // to a given window is resolved per window by find-agent-process, since
+  // two agent windows can be running different CLIs at once; the configured
   // default agent is only a fallback while that resolution is pending or
   // for a CLI with no shipped mark.
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
   property string defaultAgentId: ""
   readonly property var agentIconIds: ["claude", "codex", "fireworks"]
-  property var resolvedAgentByPid: ({})
+  // Keyed by the window's Hyprland address, not its pid: pids get recycled
+  // by the OS, and a stale "this pid was codex" answer would otherwise stick
+  // to whatever unrelated window the kernel hands that pid to next.
+  property var resolvedAgentByAddress: ({})
+  // Plain in-flight tracker, mutated in place: nothing binds to this, it
+  // just stops a window from being probed by more than one retry chain at once.
+  property var probingAddresses: ({})
+  readonly property int maxProbeAttempts: 12
+  readonly property int probeIntervalMs: 350
+  readonly property int probeTimeoutMs: 2000
+  // Several agent windows opening together (a fresh shell start, a burst of
+  // `omarchy agent` launches) queued their find-agent-process probes as
+  // concurrent dynamically-created Process objects, which intermittently
+  // cross-wired results between windows. One probe in flight at a time
+  // sidesteps that entirely; resolution is still fast since each probe is a
+  // cheap `ps` + `awk`.
+  property var _probeQueue: []
+  property bool _probeBusy: false
 
   Process {
     id: defaultAgentProc
@@ -34,31 +51,76 @@ BarWidget {
 
   Component.onCompleted: defaultAgentProc.running = true
 
-  // Fire-and-forget: kicks off find-agent-process for a pid the first time
-  // it's seen and caches the result (including a "found nothing" empty
-  // string) so a window never gets probed twice. property var change
-  // notification is identity-based, so the cache is replaced with a new
-  // object each time rather than mutated in place — writing back the same
-  // reference would silently not notify the bindings that read it.
-  function resolveAgentForPid(pid) {
-    if (!pid || root.resolvedAgentByPid[pid] !== undefined) return
+  // A window maps the moment its terminal forks, which can be well before
+  // the CLI inside it has actually exec'd into a process find-agent-process
+  // would recognize — mise re-execs, checks for updates, etc. So a single
+  // probe that comes up empty doesn't get cached as the answer; it retries
+  // on a short timer until one lands or the attempt budget
+  // (maxProbeAttempts * probeIntervalMs, a few seconds) runs out, which is
+  // the only case an empty result is cached for good.
+  function resolveAgentForWindow(address) {
+    if (!address || root.resolvedAgentByAddress[address] !== undefined || root.probingAddresses[address]) return
+    root.probingAddresses[address] = true
+    root._probeQueue.push({ address: address, attempt: 0 })
+    root._pumpProbeQueue()
+  }
 
-    var cache = Object.assign({}, root.resolvedAgentByPid)
-    cache[pid] = null
-    root.resolvedAgentByPid = cache
+  function _pumpProbeQueue() {
+    if (root._probeBusy || root._probeQueue.length === 0) return
+    root._probeBusy = true
+    var job = root._probeQueue.shift()
+    root._runProbe(job.address, job.attempt)
+  }
 
+  // A stuck or lost `streamFinished` (a process that fails to spawn, a
+  // signal that never arrives) would otherwise wedge _probeBusy forever and
+  // silently stall every window still waiting behind it in the queue. The
+  // timeout is the failsafe: whichever of it or the real result arrives
+  // first wins, via the `settled` guard, and either way the queue keeps
+  // moving.
+  function _runProbe(address, attempt) {
+    var settled = false
     var proc = Qt.createQmlObject(
       'import Quickshell.Io; Process { stdout: StdioCollector { waitForEnd: true } }',
-      root, "agentPidResolver-" + pid)
-    proc.command = [Qt.resolvedUrl("find-agent-process").toString().replace("file://", ""), String(pid)]
-    proc.stdout.streamFinished.connect(function() {
-      var result = proc.stdout.text.trim()
-      var updated = Object.assign({}, root.resolvedAgentByPid)
-      updated[pid] = result
-      root.resolvedAgentByPid = updated
+      root, "agentPidResolver")
+    proc.command = [Qt.resolvedUrl("find-agent-process").toString().replace("file://", ""), String(address)]
+
+    var timeoutTimer = Qt.createQmlObject(
+      'import QtQuick; Timer { interval: ' + root.probeTimeoutMs + '; running: true; repeat: false }',
+      root, "agentPidTimeout")
+
+    var settle = function(result) {
+      if (settled) return
+      settled = true
+      timeoutTimer.destroy()
       proc.destroy()
-    })
+      root._probeBusy = false
+
+      if (result || attempt >= root.maxProbeAttempts) {
+        delete root.probingAddresses[address]
+        var updated = Object.assign({}, root.resolvedAgentByAddress)
+        updated[address] = result
+        root.resolvedAgentByAddress = updated
+      } else {
+        root._scheduleProbeRetry(address, attempt + 1)
+      }
+      root._pumpProbeQueue()
+    }
+
+    proc.stdout.streamFinished.connect(function() { settle(proc.stdout.text.trim()) })
+    timeoutTimer.triggered.connect(function() { settle("") })
     proc.running = true
+  }
+
+  function _scheduleProbeRetry(address, attempt) {
+    var timer = Qt.createQmlObject(
+      'import QtQuick; Timer { interval: ' + root.probeIntervalMs + '; running: true; repeat: false }',
+      root, "agentPidRetry")
+    timer.triggered.connect(function() {
+      timer.destroy()
+      root._probeQueue.push({ address: address, attempt: attempt })
+      root._pumpProbeQueue()
+    })
   }
 
   function workspaceById(id) {
@@ -103,16 +165,6 @@ BarWidget {
     }
   }
 
-  // Repeater exposes each key of an object-array model as a named context
-  // property instead of populating `modelData`, so iterating toplevels
-  // directly leaves modelData undefined. Iterating plain indexes here and
-  // looking the object up inside the delegate sidesteps that.
-  function indexes(count) {
-    var out = []
-    for (var i = 0; i < count; i++) out.push(i)
-    return out
-  }
-
   // A HyprlandToplevel has no "class" of its own; the app id lives on its
   // nested Wayland toplevel handle.
   function windowAppId(toplevel) {
@@ -120,28 +172,31 @@ BarWidget {
     return String(toplevel.wayland.appId || "")
   }
 
-  // lastIpcObject is the raw `hyprctl clients -j` entry for this toplevel;
-  // it carries fields (like pid) that HyprlandToplevel doesn't expose as
-  // dedicated properties.
-  function windowPid(toplevel) {
-    if (!toplevel) return 0
-    var ipc = toplevel["lastIpcObject"]
-    return ipc && ipc.pid ? Number(ipc.pid) : 0
-  }
-
   // App icons come from the window's app id. A window's app id and its
   // .desktop file's Icon= often differ (e.g. appId "cursor" but
   // Icon=co.anysphere.cursor, appId "signal" but Icon=signal-desktop), so
   // resolve the desktop entry first via Quickshell's own heuristic matcher
   // before trying the app id directly, then fall back to a generic icon.
-  function windowIconSource(appId, pid) {
+  function windowIconSource(appId, address) {
     var name = String(appId || "").trim()
     if (!name) return Quickshell.iconPath("application-x-executable", true)
 
     if (name === "org.omarchy.agent") {
-      root.resolveAgentForPid(pid)
-      var resolved = root.resolvedAgentByPid[pid]
-      var agentId = root.agentIconIds.indexOf(resolved) !== -1 ? resolved : root.defaultAgentId
+      // Deferred: resolveAgentForWindow mutates reactive state (the probe
+      // queue, _probeBusy) that this same function also reads through
+      // nested calls. Doing that synchronously inside source's own
+      // evaluation is a textbook Qt binding loop — "source" ends up
+      // depending on a property it just wrote — and QML's loop recovery
+      // then leaves source holding a stale/incorrect icon rather than
+      // erroring loudly. Qt.callLater pushes the mutation to the next event
+      // loop turn, fully outside this evaluation.
+      Qt.callLater(function() { root.resolveAgentForWindow(address) })
+      var resolved = root.resolvedAgentByAddress[address]
+      // Only guess the default agent's mark while resolution is still
+      // pending (resolved === undefined). Once it lands, trust it: a CLI
+      // that resolved cleanly but ships no mark of its own (grok, gemini, …)
+      // should fall through to a generic icon, not borrow another agent's.
+      var agentId = resolved === undefined ? root.defaultAgentId : resolved
       if (root.agentIconIds.indexOf(agentId) !== -1)
         return Util.fileUrl(root.omarchyPath + "/shell/plugins/agents/assets/" + agentId + ".svg")
     }
@@ -222,12 +277,19 @@ BarWidget {
           }
 
           Repeater {
-            model: workspaceButton.showIcons ? root.indexes(workspaceButton.toplevels.length) : []
+            // A plain integer model (rather than a freshly allocated array
+            // on every evaluation) is what lets Qt add/remove delegates
+            // incrementally as the count changes; a new array identity each
+            // time was forcing a full destroy-and-recreate of every icon on
+            // every Hyprland event, which was intermittently corrupting the
+            // agent icon resolution below (visible as sporadic "Binding loop
+            // detected for property source" warnings).
+            model: workspaceButton.showIcons ? workspaceButton.toplevels.length : 0
 
             Image {
               id: windowIcon
-              required property int modelData
-              readonly property var toplevel: workspaceButton.toplevels[modelData]
+              required property int index
+              readonly property var toplevel: workspaceButton.toplevels[index]
 
               anchors.verticalCenter: parent.verticalCenter
               width: root.iconSize
@@ -235,7 +297,7 @@ BarWidget {
               fillMode: Image.PreserveAspectFit
               sourceSize.width: width * Screen.devicePixelRatio
               sourceSize.height: height * Screen.devicePixelRatio
-              source: root.windowIconSource(root.windowAppId(toplevel), root.windowPid(toplevel))
+              source: root.windowIconSource(root.windowAppId(toplevel), toplevel ? toplevel["address"] : "")
 
               MouseArea {
                 anchors.fill: parent

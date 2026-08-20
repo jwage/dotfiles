@@ -1,14 +1,23 @@
 #!/bin/bash
-# Print which known coding-agent CLI is running as a descendant of $1 (a
-# terminal's pid), or nothing if none is found.
+# Print which known coding-agent CLI is running as a descendant of the
+# terminal window at Hyprland address $1 (with or without the "0x" prefix),
+# or nothing if none is found.
 #
 # Every `omarchy agent` terminal launches under the fixed app id
 # org.omarchy.agent regardless of which CLI it runs, so Workspaces.qml can't
 # tell Codex from Claude Code by app id or window class alone — it has to
 # walk the terminal's own process tree to find out what's actually inside.
+#
+# Takes the address rather than a pid because Quickshell's HyprlandToplevel
+# doesn't reliably carry a pid for a freshly mapped window (lastIpcObject can
+# stay stale with no further field-refreshing event), so the pid is looked up
+# here instead, straight from hyprctl, which always has it.
 set -euo pipefail
 
-root=$1
+address="0x${1#0x}"
+root=$(hyprctl clients -j | jq -r --arg addr "$address" '.[] | select(.address == $addr) | .pid')
+[[ -z $root ]] && exit 0
+
 known="claude codex gemini copilot crush opencode grok omp pi"
 
 ps -eo pid=,ppid=,comm= | awk -v root="$root" -v known="$known" '
