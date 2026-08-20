@@ -34,21 +34,30 @@ and Cursor are the main gaps we can close on the Mac.
 | Shell prompt colors | Shared `starship/starship.toml` |
 | iTerm2 preset (optional) | Only if iTerm.app is installed |
 
-## Google Chrome (one-time)
+## Google Chrome (one-time, then Reload after updates)
 
-`install.sh` builds theme assets and symlinks the unpacked extension to
-`~/Documents/traderspost-chrome-theme`. Enable it once:
+`install.sh` builds theme assets (frame/toolbar PNGs are required — colors
+alone look like default black/gray on current Chrome) and **copies** the
+extension folder to `~/Documents/traderspost-chrome-theme`.
 
 1. Open `chrome://extensions`
 2. Turn on **Developer mode**
 3. **Load unpacked** → select `~/Documents/traderspost-chrome-theme`
-4. Confirm **TradersPost** appears and is enabled
+4. Confirm **TradersPost** is enabled
 
-Chrome remembers the extension across restarts. Re-run `install.sh` after
-palette changes, then click **Reload** on the extension card.
+After dotfiles updates: open `chrome://extensions` and click **Reload** on
+TradersPost.
 
-Toolbar/tabs/omnibox use TradersPost navy + cyan; the new-tab page uses the
-same wallpaper as the desktop.
+If the toolbar still looks like default gray/black:
+
+1. **Chrome → Settings → Appearance** — reset/remove any **Chrome colors**
+   theme (that overrides extension themes)
+2. Confirm the TradersPost card on `chrome://extensions` has no errors
+3. Re-run `~/Repositories/dotfiles/mac/apply-theme.sh` and **Load unpacked**
+   again (or Reload)
+
+The tab strip uses TradersPost navy (`#233644` toolbar, `#0984e3` accents);
+it is intentionally dark, but should read as blue-navy rather than flat gray.
 
 ## Terminal.app
 

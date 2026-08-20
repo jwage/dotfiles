@@ -36,25 +36,20 @@ link_theme_file() {
   echo "linked  $dest -> $src"
 }
 
-link_theme_dir() {
+copy_theme_dir() {
   local repo_relative="$1"
   local dest="$2"
   local src="$REPO_DIR/$repo_relative"
 
-  if [[ -L "$dest" && "$(realpath "$dest")" == "$(realpath "$src")" ]]; then
-    echo "ok      $dest"
-    return
-  fi
-
   mkdir -p "$(dirname "$dest")"
 
   if [[ -e "$dest" || -L "$dest" ]]; then
-    mv "$dest" "$dest.orig"
-    echo "backed up $dest -> $dest.orig"
+    rm -rf "$dest"
   fi
 
-  ln -s "$src" "$dest"
-  echo "linked  $dest -> $src"
+  mkdir -p "$dest"
+  rsync -a --delete "$src/" "$dest/"
+  echo "copied  $dest <- $src"
 }
 
 # Dark mode + blue accent (closest preset to --color-primary-500 / #0984e3).
@@ -115,8 +110,10 @@ fi
 
 if bash "$REPO_DIR/mac/build-chrome-theme.sh"; then
   CHROME_THEME="$HOME/Documents/traderspost-chrome-theme"
-  link_theme_dir "mac/chrome/traderspost-theme" "$CHROME_THEME"
+  copy_theme_dir "mac/chrome/traderspost-theme" "$CHROME_THEME"
   echo "chrome:  chrome://extensions -> Developer mode -> Load unpacked -> $CHROME_THEME"
+  echo "chrome:  if TradersPost is already loaded, click Reload on that card (v1.1.0)"
+  echo "chrome:  turn off Settings -> Appearance -> Chrome colors (it overrides themes)"
   if [[ -d "/Applications/Google Chrome.app" ]]; then
     open -a "Google Chrome" "chrome://extensions/" 2>/dev/null || true
   fi
