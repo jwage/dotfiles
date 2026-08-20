@@ -64,6 +64,7 @@ LINUX_LINKS=(
   "hypr/monitors.lua:$HOME/.config/hypr/monitors.lua"
   "foot/foot.ini:$HOME/.config/foot/foot.ini"
   "omarchy/shell.json:$HOME/.config/omarchy/shell.json"
+  "omarchy/shell.toml:$HOME/.config/omarchy/shell.toml"
   "omarchy/defaults/agent:$HOME/.config/omarchy/defaults/agent"
   "omarchy/plugins/jwage.workspaces/manifest.json:$HOME/.config/omarchy/plugins/jwage.workspaces/manifest.json"
   "omarchy/plugins/jwage.workspaces/Workspaces.qml:$HOME/.config/omarchy/plugins/jwage.workspaces/Workspaces.qml"
