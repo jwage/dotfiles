@@ -102,9 +102,11 @@ hl.unbind("SUPER + P")
 o.bind("SUPER + ALT + P", "Pseudo window", hl.dsp.window.pseudo())
 o.bind("SUPER + P", "Cmd+P passthrough", send_ctrl_shortcut_once("P"))
 
--- SUPER+F was "Full screen" -- move it to SUPER+ALT+F so SUPER+F can forward
--- Ctrl+F (Find in Chrome, Cursor/VS Code, etc), matching Cmd+F on macOS.
+-- SUPER+F was "Full screen" and SUPER+ALT+F was "Full width" -- replace both
+-- with just fullscreen on SUPER+ALT+F, so SUPER+F is free to forward Ctrl+F
+-- (Find in Chrome, Cursor/VS Code, etc), matching Cmd+F on macOS.
 hl.unbind("SUPER + F")
+hl.unbind("SUPER + ALT + F")
 o.bind("SUPER + ALT + F", "Full screen", hl.dsp.window.fullscreen())
 o.bind("SUPER + F", "Find (Cmd+F)", send_ctrl_shortcut_once("F"))
 
