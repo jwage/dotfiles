@@ -72,6 +72,8 @@ LINUX_LINKS=(
   "omarchy/themes/traderspost/backgrounds/traderspost.png:$HOME/.config/omarchy/themes/traderspost/backgrounds/traderspost.png"
   "magicmouse-scroll/daemon.py:$HOME/.local/bin/magicmouse-scroll-daemon"
   "magicmouse-scroll/magicmouse-scroll.service:$HOME/.config/systemd/user/magicmouse-scroll.service"
+  "bluetooth-hid-reconnect/reconnect.sh:$HOME/.local/bin/bluetooth-hid-reconnect"
+  "bluetooth-hid-reconnect/bluetooth-hid-reconnect.service:$HOME/.config/systemd/user/bluetooth-hid-reconnect.service"
   "bash/bashrc:$HOME/.bashrc"
   "XCompose:$HOME/.XCompose"
 )

@@ -1,0 +1,9 @@
+[Unit]
+Description=Reconnect trusted Bluetooth HID peripherals (keyboard, mouse) after login
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/bluetooth-hid-reconnect
+
+[Install]
+WantedBy=graphical-session.target
