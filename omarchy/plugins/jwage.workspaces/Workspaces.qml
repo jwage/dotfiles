@@ -21,9 +21,17 @@ BarWidget {
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
   property string defaultAgentId: ""
   readonly property var agentIconIds: ["claude", "codex", "fireworks"]
-  // Keyed by the window's Hyprland address, not its pid: pids get recycled
-  // by the OS, and a stale "this pid was codex" answer would otherwise stick
-  // to whatever unrelated window the kernel hands that pid to next.
+  // Agents omarchy ships no assets/<id>.svg for, mapped to an icon their
+  // own desktop app installed into the icon theme. Keeps a resolved agent
+  // from falling all the way through to the generic executable glyph just
+  // because the agents panel has no mark for it. A missing entry (or an
+  // uninstalled app) simply falls through, so this stays additive.
+  readonly property var agentThemeIconNames: ({ "grok": "grok-bot" })
+  // Keyed by the window's Hyprland address. An address is stable for the
+  // lifetime of its window, but it is a heap pointer, so Hyprland hands the
+  // same one out again for a later window — see the pruning Connections
+  // below, without which a new Codex window inherits a closed Claude
+  // window's cached answer.
   property var resolvedAgentByAddress: ({})
   // Plain in-flight tracker, mutated in place: nothing binds to this, it
   // just stops a window from being probed by more than one retry chain at once.
@@ -50,6 +58,26 @@ BarWidget {
   }
 
   Component.onCompleted: defaultAgentProc.running = true
+
+  // Drop a window's cached agent as it closes. objectRemovedPre (rather than
+  // Post, or a sweep of the live set) is deliberate: it still has the
+  // toplevel, so the address is readable, and the entry is gone before
+  // Hyprland can reissue that address to a new window — which is what makes
+  // reuse unable to serve a stale answer at all, rather than merely
+  // unlikely to.
+  Connections {
+    target: Hyprland.toplevels
+
+    function onObjectRemovedPre(object, index) {
+      var address = object ? object["address"] : ""
+      if (!address) return
+      delete root.probingAddresses[address]
+      if (root.resolvedAgentByAddress[address] === undefined) return
+      var updated = Object.assign({}, root.resolvedAgentByAddress)
+      delete updated[address]
+      root.resolvedAgentByAddress = updated
+    }
+  }
 
   // A window maps the moment its terminal forks, which can be well before
   // the CLI inside it has actually exec'd into a process find-agent-process
@@ -199,6 +227,12 @@ BarWidget {
       var agentId = resolved === undefined ? root.defaultAgentId : resolved
       if (root.agentIconIds.indexOf(agentId) !== -1)
         return Util.fileUrl(root.omarchyPath + "/shell/plugins/agents/assets/" + agentId + ".svg")
+
+      var themeIconName = root.agentThemeIconNames[agentId]
+      if (themeIconName) {
+        var agentThemeIcon = Quickshell.iconPath(themeIconName, true)
+        if (agentThemeIcon.length > 0) return agentThemeIcon
+      }
     }
 
     var entry = DesktopEntries.heuristicLookup(name)
