@@ -102,12 +102,6 @@ hl.unbind("SUPER + P")
 o.bind("SUPER + ALT + P", "Pseudo window", hl.dsp.window.pseudo())
 o.bind("SUPER + P", "Cmd+P passthrough", send_ctrl_shortcut_once("P"))
 
--- SUPER+F was "Full screen" -- move it to SUPER+ALT+F so SUPER+F can forward
--- Ctrl+F (Find in Chrome, Cursor/VS Code, etc), matching Cmd+F on macOS.
-hl.unbind("SUPER + F")
-o.bind("SUPER + ALT + F", "Full screen", hl.dsp.window.fullscreen())
-o.bind("SUPER + F", "Find (Cmd+F)", send_ctrl_shortcut_once("F"))
-
 -- Every other SUPER+<letter> Omarchy doesn't already claim for a window-
 -- manager action: forward as Ctrl+<letter>, so SUPER consistently plays the
 -- role Cmd does on macOS instead of switching to Ctrl for ordinary app
