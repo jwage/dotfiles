@@ -1,0 +1,39 @@
+#!/bin/bash
+# Print which known coding-agent CLI is running as a descendant of $1 (a
+# terminal's pid), or nothing if none is found.
+#
+# Every `omarchy agent` terminal launches under the fixed app id
+# org.omarchy.agent regardless of which CLI it runs, so Workspaces.qml can't
+# tell Codex from Claude Code by app id or window class alone — it has to
+# walk the terminal's own process tree to find out what's actually inside.
+set -euo pipefail
+
+root=$1
+known="claude codex gemini copilot crush opencode grok omp pi"
+
+ps -eo pid=,ppid=,comm= | awk -v root="$root" -v known="$known" '
+  {
+    ppid[$1] = $2
+    comm[$1] = $3
+  }
+  END {
+    n = split(known, k, " ")
+    for (i = 1; i <= n; i++) isKnown[k[i]] = 1
+
+    queueLen = 1
+    queue[1] = root
+    for (i = 1; i <= queueLen; i++) {
+      p = queue[i]
+      if (comm[p] in isKnown) {
+        print comm[p]
+        exit
+      }
+      for (c in ppid) {
+        if (ppid[c] == p) {
+          queueLen++
+          queue[queueLen] = c
+        }
+      }
+    }
+  }
+'

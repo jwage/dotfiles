@@ -12,12 +12,16 @@ BarWidget {
 
   // org.omarchy.agent is the fixed app id every `omarchy agent` terminal
   // session launches under (see omarchy-agent), regardless of which CLI is
-  // configured as the default — it has no .desktop entry of its own, so
-  // reuse the mark the agent-usage panel already ships for whichever CLI is
-  // currently default.
+  // actually running inside it — it has no .desktop entry of its own, so
+  // reuse the marks the agent-usage panel already ships. Which mark applies
+  // to a given window is resolved per pid by find-agent-process, since two
+  // agent windows can be running different CLIs at once; the configured
+  // default agent is only a fallback while that resolution is pending or
+  // for a CLI with no shipped mark.
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
   property string defaultAgentId: ""
   readonly property var agentIconIds: ["claude", "codex", "fireworks"]
+  property var resolvedAgentByPid: ({})
 
   Process {
     id: defaultAgentProc
@@ -29,6 +33,33 @@ BarWidget {
   }
 
   Component.onCompleted: defaultAgentProc.running = true
+
+  // Fire-and-forget: kicks off find-agent-process for a pid the first time
+  // it's seen and caches the result (including a "found nothing" empty
+  // string) so a window never gets probed twice. property var change
+  // notification is identity-based, so the cache is replaced with a new
+  // object each time rather than mutated in place — writing back the same
+  // reference would silently not notify the bindings that read it.
+  function resolveAgentForPid(pid) {
+    if (!pid || root.resolvedAgentByPid[pid] !== undefined) return
+
+    var cache = Object.assign({}, root.resolvedAgentByPid)
+    cache[pid] = null
+    root.resolvedAgentByPid = cache
+
+    var proc = Qt.createQmlObject(
+      'import Quickshell.Io; Process { stdout: StdioCollector { waitForEnd: true } }',
+      root, "agentPidResolver-" + pid)
+    proc.command = [Qt.resolvedUrl("find-agent-process").toString().replace("file://", ""), String(pid)]
+    proc.stdout.streamFinished.connect(function() {
+      var result = proc.stdout.text.trim()
+      var updated = Object.assign({}, root.resolvedAgentByPid)
+      updated[pid] = result
+      root.resolvedAgentByPid = updated
+      proc.destroy()
+    })
+    proc.running = true
+  }
 
   function workspaceById(id) {
     var values = Hyprland.workspaces.values
@@ -89,17 +120,31 @@ BarWidget {
     return String(toplevel.wayland.appId || "")
   }
 
+  // lastIpcObject is the raw `hyprctl clients -j` entry for this toplevel;
+  // it carries fields (like pid) that HyprlandToplevel doesn't expose as
+  // dedicated properties.
+  function windowPid(toplevel) {
+    if (!toplevel) return 0
+    var ipc = toplevel["lastIpcObject"]
+    return ipc && ipc.pid ? Number(ipc.pid) : 0
+  }
+
   // App icons come from the window's app id. A window's app id and its
   // .desktop file's Icon= often differ (e.g. appId "cursor" but
   // Icon=co.anysphere.cursor, appId "signal" but Icon=signal-desktop), so
   // resolve the desktop entry first via Quickshell's own heuristic matcher
   // before trying the app id directly, then fall back to a generic icon.
-  function windowIconSource(appId) {
+  function windowIconSource(appId, pid) {
     var name = String(appId || "").trim()
     if (!name) return Quickshell.iconPath("application-x-executable", true)
 
-    if (name === "org.omarchy.agent" && root.agentIconIds.indexOf(root.defaultAgentId) !== -1)
-      return Util.fileUrl(root.omarchyPath + "/shell/plugins/agents/assets/" + root.defaultAgentId + ".svg")
+    if (name === "org.omarchy.agent") {
+      root.resolveAgentForPid(pid)
+      var resolved = root.resolvedAgentByPid[pid]
+      var agentId = root.agentIconIds.indexOf(resolved) !== -1 ? resolved : root.defaultAgentId
+      if (root.agentIconIds.indexOf(agentId) !== -1)
+        return Util.fileUrl(root.omarchyPath + "/shell/plugins/agents/assets/" + agentId + ".svg")
+    }
 
     var entry = DesktopEntries.heuristicLookup(name)
     if (entry && entry.icon) {
@@ -190,7 +235,7 @@ BarWidget {
               fillMode: Image.PreserveAspectFit
               sourceSize.width: width * Screen.devicePixelRatio
               sourceSize.height: height * Screen.devicePixelRatio
-              source: root.windowIconSource(root.windowAppId(toplevel))
+              source: root.windowIconSource(root.windowAppId(toplevel), root.windowPid(toplevel))
 
               MouseArea {
                 anchors.fill: parent

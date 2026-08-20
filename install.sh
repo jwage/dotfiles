@@ -68,6 +68,7 @@ LINUX_LINKS=(
   "omarchy/defaults/agent:$HOME/.config/omarchy/defaults/agent"
   "omarchy/plugins/jwage.workspaces/manifest.json:$HOME/.config/omarchy/plugins/jwage.workspaces/manifest.json"
   "omarchy/plugins/jwage.workspaces/Workspaces.qml:$HOME/.config/omarchy/plugins/jwage.workspaces/Workspaces.qml"
+  "omarchy/plugins/jwage.workspaces/find-agent-process:$HOME/.config/omarchy/plugins/jwage.workspaces/find-agent-process"
   "omarchy/plugins/jwage.battery-sleep/manifest.json:$HOME/.config/omarchy/plugins/jwage.battery-sleep/manifest.json"
   "omarchy/plugins/jwage.battery-sleep/Service.qml:$HOME/.config/omarchy/plugins/jwage.battery-sleep/Service.qml"
   "omarchy/themes/traderspost/colors.toml:$HOME/.config/omarchy/themes/traderspost/colors.toml"
