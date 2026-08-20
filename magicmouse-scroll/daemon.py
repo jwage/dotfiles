@@ -108,6 +108,19 @@ ARM_TIME_WINDOW = 0.2
 
 HI_RES_PER_NOTCH = 120
 
+# As a finger lifts off the touch shell, the contact centroid commonly jumps
+# a few units in a direction unrelated to the swipe (the touch area shrinks
+# asymmetrically while rolling off the fingertip). Confirmed by logging raw
+# per-frame deltas: a real swipe decelerates smoothly frame over frame, then
+# in the last 2-4 frames before ABS_MT_TRACKING_ID goes to -1, dy reverses
+# sign and spikes in magnitude -- that artifact was getting read as genuine
+# velocity and launching momentum in the wrong direction right as the
+# gesture ended. Momentum is seeded from the velocity as of this long before
+# liftoff instead of the latest sample, so the peel-off frames are excluded.
+# ~4-5 tick intervals at TICK_HZ, comfortably longer than the observed
+# artifact but short enough not to blunt a real, deliberate quick stop.
+LIFT_DEBOUNCE = 0.05
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 log = logging.getLogger("magicmouse-scroll")
 
@@ -157,6 +170,7 @@ class ScrollState:
         self.momentum_task = None
         self.last_pointer_move_t = None
         self.last_click_t = None
+        self.vel_history = []
 
     def note_pointer_move(self):
         self.last_pointer_move_t = time.monotonic()
@@ -263,6 +277,8 @@ class ScrollState:
             if self.momentum_task is not None:
                 self.momentum_task.cancel()
                 self.momentum_task = None
+            if not self.touching:
+                self.vel_history = []
             self.touching = True
 
             dt = (now - self.last_frame_t) if self.last_frame_t else TICK_INTERVAL
@@ -276,13 +292,27 @@ class ScrollState:
                 self.vel_y = VELOCITY_EMA_ALPHA * inst_vy + (1 - VELOCITY_EMA_ALPHA) * self.vel_y
                 self.pending_dx = 0
                 self.pending_dy = 0
+                self.vel_history.append((now, self.vel_x, self.vel_y))
+                cutoff = now - LIFT_DEBOUNCE * 4
+                while self.vel_history and self.vel_history[0][0] < cutoff:
+                    self.vel_history.pop(0)
         elif self.touching:
             self.touching = False
-            speed = (self.vel_x ** 2 + self.vel_y ** 2) ** 0.5
+            # Seed momentum from the velocity as of LIFT_DEBOUNCE ago rather
+            # than the latest sample -- the last stretch before liftoff is
+            # where the finger-peeling-off artifact lives (see LIFT_DEBOUNCE).
+            cutoff = now - LIFT_DEBOUNCE
+            vx, vy = 0.0, 0.0
+            for t, hx, hy in reversed(self.vel_history):
+                if t <= cutoff:
+                    vx, vy = hx, hy
+                    break
+            speed = (vx ** 2 + vy ** 2) ** 0.5
             if speed >= FLICK_MIN_VELOCITY:
-                self.momentum_task = asyncio.ensure_future(self.coast(self.vel_x, self.vel_y))
+                self.momentum_task = asyncio.ensure_future(self.coast(vx, vy))
             self.vel_x = 0.0
             self.vel_y = 0.0
+            self.vel_history = []
 
         self.last_frame_t = now
 
