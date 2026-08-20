@@ -91,6 +91,7 @@ if [[ "$OS" == "Darwin" ]]; then
   else
     echo "skip    macOS desktop wallpaper (osascript failed -- pick $MAC_WALLPAPER in System Settings)" >&2
   fi
+  bash "$REPO_DIR/mac/apply-theme.sh"
 else
   for entry in "${LINUX_LINKS[@]}"; do
     link_one "$entry"

@@ -5,9 +5,10 @@ Personal config shared between this Mac and [Omarchy](https://omarchy.org)
 doesn't mean starting over.
 
 `install.sh` is OS-aware: it installs the shared editor/dev/shell files on
-both machines and skips Linux desktop files on macOS (except the TradersPost
-theme wallpaper -- `install.sh` symlinks it into `~/Pictures/Wallpapers/` and
-sets it as the macOS desktop background).
+both machines and skips Linux desktop files on macOS. On macOS it still
+applies the TradersPost wallpaper, system dark mode + blue accent, Cursor
+chrome/terminal colors, Starship prompt colors, and an iTerm2 preset — see
+[`mac/README.md`](mac/README.md).
 
 Only actual customizations are tracked here, not Omarchy's stock defaults.
 Each Linux desktop file was diffed against Omarchy's shipped default/skel
@@ -19,7 +20,7 @@ Shared (macOS + Linux):
 
 | Path | What it is |
 |---|---|
-| `cursor/settings.json` | Cursor editor settings (theme, PHP tooling, Composer UI) |
+| `cursor/settings.json` | Cursor editor settings (Sunburst + TradersPost `[Sunburst]` chrome/terminal overrides from `colors.toml`, PHP tooling) |
 | `cursor/keybindings.json` | Cursor keybindings: agent/sidebar chords (`cmd` + `ctrl`) plus Linux `Ctrl+C` copies a terminal selection |
 | `cursor/extensions.txt` | Cursor extension IDs (`install.sh` installs them; UI names are in comments — Twig is `whatwedo.twig`) |
 | `claude/CLAUDE.md` | Global Claude Code instructions (incl. keeping this repo in sync) |
@@ -30,7 +31,7 @@ Shared (macOS + Linux):
 | `ssh/config` | Host aliases |
 | `shell/env.sh` | MCP env file, `~/.local/bin` + Composer PATH, OS-aware PHP CLI ini scan dir, `command_not_found_handler`/`handle` fallback to local `bin`/`vendor/bin` |
 | `zsh/zshrc` | Shared zshrc: Omarchy bootstrap (no-op on macOS) + `shell/env.sh` + oh-my-zsh plugins + Starship prompt |
-| `starship/starship.toml` | Omarchy's stock Starship prompt (directory + branch + `❯`) so macOS matches |
+| `starship/starship.toml` | Starship prompt (TradersPost cyan/blue palette on both machines) |
 | `php/cli.ini` | Shared PHP CLI overrides (`memory_limit = -1` only) |
 | `php/setup.sh` / `php/README.md` | Host PHP 8.5 + extensions for Composer/phpunit (agents: start at `php/README.md`) |
 
@@ -52,6 +53,14 @@ Linux / Omarchy only:
 | `etc/udev/rules.d/99-uinput.rules` | Lets the `input` group open `/dev/uinput` so the scroll daemon below can run as a normal user |
 | `magicmouse-scroll/` | Userspace daemon giving the Magic Mouse real macOS-style momentum scrolling — libinput won't run touch-gesture scrolling on a device it classifies as a mouse, so this grabs it exclusively, passes pointer/clicks through, and computes kinetic scroll from the raw touch data itself. `daemon.py` → `~/.local/bin/magicmouse-scroll-daemon`, `magicmouse-scroll.service` is a systemd `--user` unit. See `hypr/input.lua`'s `magicmouse-scroll-daemon` device block for the paired pointer/scroll tuning |
 | `dconf/interface.ini` | GTK/GNOME interface settings (theme, cursor, `text-scaling-factor`) — dconf lives in a private binary database, not a plain file, so this is a `dconf dump`/`dconf load` snapshot rather than a symlink; `install.sh` applies it with `dconf load` |
+
+macOS only:
+
+| Path | What it is |
+|---|---|
+| `mac/apply-theme.sh` | Dark mode, blue accent color, iTerm2 preset symlink (`install.sh` calls this) |
+| `mac/traderspost.itermcolors` | iTerm2 color preset (import once from `~/Documents/traderspost.itermcolors`) |
+| `mac/README.md` | What macOS can and cannot theme vs Omarchy |
 
 ## What's deliberately excluded
 
