@@ -1,6 +1,7 @@
 ForwardAgent yes
 SendEnv SSH_USER
 StrictHostKeyChecking no
+AddKeysToAgent yes
 
 Host devvm
     ForwardAgent yes

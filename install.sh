@@ -78,6 +78,7 @@ LINUX_LINKS=(
   "bluetooth-hid-reconnect/bluetooth-hid-reconnect.service:$HOME/.config/systemd/user/bluetooth-hid-reconnect.service"
   "bash/bashrc:$HOME/.bashrc"
   "XCompose:$HOME/.XCompose"
+  "environment.d/ssh-agent.conf:$HOME/.config/environment.d/ssh-agent.conf"
 )
 
 for entry in "${SHARED_LINKS[@]}"; do
