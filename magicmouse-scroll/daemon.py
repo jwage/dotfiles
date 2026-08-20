@@ -69,9 +69,9 @@ POINTER_STILL_DEBOUNCE = 0.15
 
 # Raw ABS_MT_POSITION units a touch must travel (cumulative straight-line
 # distance from where it landed) before it's treated as a deliberate swipe
-# rather than incidental contact/noise. Small -- this is just a jitter
-# filter, not the primary defense (that's the debounce above).
-ARM_DISTANCE = 20
+# rather than incidental/barely-there contact. Also the main defense (along
+# with the debounce above) against a light touch producing scroll output.
+ARM_DISTANCE = 100
 
 HI_RES_PER_NOTCH = 120
 
