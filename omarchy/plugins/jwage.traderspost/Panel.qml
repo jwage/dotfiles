@@ -48,14 +48,8 @@ Panel {
     return hostWidget ? hostWidget.statusColor(grade) : Color.muted
   }
 
-  // The signals the alert policy pages on, then everything that explains them.
-  readonly property var pagedKeys: ["liveQueueWait", "paperQueueWait", "webhookQueueWait", "errorRate", "synthetic"]
-  // The inbound webhook path gets its own block: it is the front door, it is the
-  // highest-volume web transaction by far, and it is an order of magnitude faster
-  // than a page render -- averaged together with the rest of HTTP, each hid the
-  // other.
-  readonly property var webhookKeys: ["webhookReceiveRate", "webhookReceiveDuration", "webhookReceiveP95"]
-  readonly property var contextKeys: ["webThroughput", "webDuration", "tradesProcessed"]
+  // Application traffic: what is true around the pipeline rather than in it.
+  readonly property var contextKeys: ["errorRate", "synthetic", "webThroughput", "webDuration"]
 
   function rowsFor(keys) {
     var out = []
@@ -65,9 +59,9 @@ Panel {
     return out
   }
 
-  readonly property var pagedRows: rowsFor(pagedKeys)
-  readonly property var webhookRows: rowsFor(webhookKeys)
   readonly property var contextRows: rowsFor(contextKeys)
+  // Never re-sorted: the sequence is the information.
+  readonly property var stages: (health && health.stages) || []
   readonly property var externals: (health && health.externals) || []
 
   function open() {
@@ -129,7 +123,7 @@ Panel {
     // lives on the right, so centerOnBar would drop the cockpit in the middle
     // of the screen, disconnected from the dot that opened it.
     focusTarget: keyCatcher
-    contentWidth: panel.fittedContentWidth(Style.space(360))
+    contentWidth: panel.fittedContentWidth(Style.space(430))
     contentHeight: panel.fittedContentHeight(content.implicitHeight)
 
     PanelKeyCatcher {
@@ -287,8 +281,12 @@ Panel {
           foreground: root.contentForeground
         }
 
+        // ---- 1. The pipeline a trade travels, in travel order. Reading down
+        //      the section follows a single webhook from the front door to a
+        //      placed order, so a stage backing up is located by where it sits
+        //      in the chain rather than by hunting for a number.
         PanelSectionHeader {
-          text: "ALERTS ON THESE"
+          text: "TRADING EXECUTION · LAST 5 MIN"
           foreground: root.contentForeground
           fontFamily: root.contentFontFamily
         }
@@ -298,8 +296,73 @@ Panel {
           spacing: Style.spacing.xs
 
           Repeater {
-            model: root.pagedRows
-            delegate: metricRow
+            model: root.stages
+
+            Item {
+              required property var modelData
+              width: content.width
+              height: Math.max(stageName.implicitHeight, stageTail.implicitHeight)
+
+              Text {
+                id: stageName
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                text: modelData.label
+                color: Qt.darker(root.contentForeground, 1.25)
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.bodySmall
+                elide: Text.ElideRight
+                width: Math.min(implicitWidth, parent.width * 0.42)
+              }
+
+              Row {
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Style.spacing.md
+
+                // Flow rate first, then how long the work took, then the queue
+                // wait -- so the eye lands on the graded number last, next to
+                // its dot.
+                Text {
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: modelData.rateText
+                  color: Qt.darker(root.contentForeground, 1.8)
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption
+                }
+
+                Text {
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: modelData.runText
+                  color: Qt.darker(root.contentForeground, 1.55)
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption
+                }
+
+                Text {
+                  id: stageTail
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: modelData.tailText
+                  color: root.stale
+                    ? Color.muted
+                    : (modelData.graded ? root.statusColor(modelData.grade) : Qt.darker(root.contentForeground, 1.55))
+                  font.family: root.contentFontFamily
+                  font.pixelSize: modelData.graded ? Style.font.bodySmall : Style.font.caption
+                  font.bold: modelData.grade === "warning" || modelData.grade === "critical"
+                }
+
+                // Only a queue wait carries a verdict; the front door's p95 has
+                // no threshold to be judged against.
+                Text {
+                  anchors.verticalCenter: parent.verticalCenter
+                  visible: modelData.graded
+                  text: "●"
+                  color: root.stale ? Color.muted : root.statusColor(modelData.grade)
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption
+                }
+              }
+            }
           }
         }
 
@@ -308,29 +371,11 @@ Panel {
           foreground: root.contentForeground
         }
 
+        // ---- 2. Traffic around the application, with the webhook front door
+        //      excluded from the web figures because it belongs to the pipeline
+        //      above.
         PanelSectionHeader {
-          text: "WEBHOOK RECEIVE · LAST 5 MIN"
-          foreground: root.contentForeground
-          fontFamily: root.contentFontFamily
-        }
-
-        Column {
-          width: parent.width
-          spacing: Style.spacing.xs
-
-          Repeater {
-            model: root.webhookRows
-            delegate: metricRow
-          }
-        }
-
-        PanelSeparator {
-          width: parent.width
-          foreground: root.contentForeground
-        }
-
-        PanelSectionHeader {
-          text: "OTHER WEB TRAFFIC · LAST 5 MIN"
+          text: "APPLICATION TRAFFIC · LAST 5 MIN"
           foreground: root.contentForeground
           fontFamily: root.contentFontFamily
         }
@@ -357,7 +402,7 @@ Panel {
           // information: these are the endpoints actually being called right
           // now, so a quiet overnight desk shows fewer rows than a busy open --
           // and it says how many rows are below the fold.
-          text: "EXTERNAL APIS · " + root.externals.length + " ACTIVE"
+          text: "EXTERNAL SERVICES · " + root.externals.length + " ACTIVE"
           foreground: root.contentForeground
           fontFamily: root.contentFontFamily
         }

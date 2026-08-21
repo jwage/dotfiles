@@ -64,13 +64,17 @@ const healthy = JSON.stringify({
   ok: true,
   status: "ok",
   app: "TradersPost Heroku Production",
+  stages: [
+    { key: "receive", label: "Receive Webhook", rate: 184.2, wait: null, run: 11.4, extra: 13.8, extraLabel: "p95", grade: "info" },
+    { key: "outbox", label: "Outbox", rate: 183.1, wait: 4.1, run: 7.6, grade: "ok" },
+    { key: "handle", label: "Handle Webhook", rate: 185.0, wait: 6.2, run: 21.8, grade: "ok" },
+    { key: "live", label: "Live Trades", rate: 47.3, wait: 1420.5, run: 336.1, grade: "critical" },
+    { key: "paper", label: "Paper Trades", rate: 141.2, wait: 6.0, run: 160.4, grade: "ok" }
+  ],
   metrics: {
-    liveQueueWait: { value: 3.93, unit: "ms", grade: "ok", label: "Live queue wait" },
     errorRate: { value: 0, unit: "%", grade: "ok", label: "Error rate" },
     webDuration: { value: 107.8, unit: "ms", grade: "info", label: "Web response" },
-    webThroughput: { value: 1164.2, unit: "/min", grade: "info", label: "Web throughput" },
-    webhookReceiveRate: { value: 284.3, unit: "/min", grade: "info", label: "Received" },
-    webhookReceiveP95: { value: 13.8, unit: "ms", grade: "info", label: "Receive p95" }
+    webThroughput: { value: 1164.2, unit: "/min", grade: "info", label: "Web throughput" }
   },
   externals: [
     { host: "sandbox.tradier.com", label: "Tradier paper", ms: 787.4, rpm: 47.2 },
@@ -86,11 +90,36 @@ check("a healthy payload parses into ordered rows", () => {
   assert.strictEqual(health.ok, true)
   assert.strictEqual(health.status, "ok")
   assert.deepStrictEqual(health.rows.map(r => r.key),
-    ["liveQueueWait", "errorRate", "webhookReceiveRate", "webhookReceiveP95", "webThroughput", "webDuration"])
-  assert.strictEqual(Model.findRow(health, "liveQueueWait").text, "4ms")
-  // Webhook receive is ordered ahead of general web traffic, not mixed into it.
-  const keys = health.rows.map(r => r.key)
-  assert.ok(keys.indexOf("webhookReceiveRate") < keys.indexOf("webThroughput"))
+    ["errorRate", "webThroughput", "webDuration"])
+  assert.strictEqual(Model.findRow(health, "errorRate").text, "0.00%")
+})
+
+check("stages keep pipeline order, never sorted by value", () => {
+  const health = Model.parseHealth(healthy)
+  assert.deepStrictEqual(health.stages.map(s => s.label),
+    ["Receive Webhook", "Outbox", "Handle Webhook", "Live Trades", "Paper Trades"])
+  // Live Trades is the worst stage by far; it must still sit fourth, because
+  // the sequence is the information.
+  assert.strictEqual(health.stages[3].grade, "critical")
+})
+
+check("each stage formats its three figures, and only a wait is graded", () => {
+  const stages = Model.parseHealth(healthy).stages
+  const receive = stages[0], live = stages[3]
+  assert.strictEqual(receive.rateText, "184/min")
+  assert.strictEqual(receive.runText, "11ms run")
+  // The front door has no queue, so its trailing figure is the p95 and it
+  // carries no verdict.
+  assert.strictEqual(receive.tailText, "14ms p95")
+  assert.strictEqual(receive.graded, false)
+  assert.strictEqual(live.tailText, "1.4s wait")
+  assert.strictEqual(live.graded, true)
+})
+
+check("a stage missing its numbers degrades instead of printing NaN", () => {
+  assert.deepStrictEqual(Model.normalizeStages([{ key: "x", label: "X" }]),
+    [{ key: "x", label: "X", grade: "info", rateText: "idle", runText: "", tailText: "", graded: false }])
+  assert.deepStrictEqual(Model.normalizeStages(undefined), [])
 })
 
 check("externals keep the helper's slowest-first order and are not metric rows", () => {
@@ -138,12 +167,12 @@ check("a payload with no externals at all is an empty list, not a crash", () => 
 check("rows follow METRIC_ORDER, not the order the JSON happened to use", () => {
   const scrambled = JSON.stringify({
     ok: true, status: "ok", metrics: {
-      tradesProcessed: { value: 1, unit: "", grade: "info", label: "Trades (5m)" },
-      liveQueueWait: { value: 1, unit: "ms", grade: "ok", label: "Live queue wait" }
+      webDuration: { value: 1, unit: "ms", grade: "info", label: "Web response" },
+      errorRate: { value: 0, unit: "%", grade: "ok", label: "Error rate" }
     }, issues: []
   })
   assert.deepStrictEqual(Model.parseHealth(scrambled).rows.map(r => r.key),
-    ["liveQueueWait", "tradesProcessed"])
+    ["errorRate", "webDuration"])
 })
 
 check("failures degrade to a no-data state with a reason, never a throw", () => {
@@ -159,6 +188,7 @@ check("failures degrade to a no-data state with a reason, never a throw", () => 
     assert.strictEqual(health.status, "unknown")
     assert.deepStrictEqual(health.rows, [])
     assert.deepStrictEqual(health.externals, [])
+    assert.deepStrictEqual(health.stages, [])
     assert.match(health.error, expectation)
   }
 })
@@ -184,8 +214,12 @@ check("the bar label is the dot and nothing else, in every state", () => {
   assert.strictEqual(Model.barLabel(null), "●")
 })
 
-check("the summary line leads with the verdict", () => {
-  assert.match(Model.summaryLine(Model.parseHealth(healthy)), /^TradersPost: Healthy/)
+check("the summary line leads with the verdict and names the worst stage", () => {
+  const line = Model.summaryLine(Model.parseHealth(healthy))
+  assert.match(line, /^TradersPost: Healthy/)
+  // Of the graded stages, Live Trades is the worst -- that is the one worth
+  // putting in a notification.
+  assert.match(line, /Live Trades 1\.4s wait$/)
   assert.match(Model.summaryLine(Model.parseHealth("broken")), /unreadable/)
   const critical = Model.parseHealth(JSON.stringify({
     ok: true, status: "critical", metrics: {}, issues: [{ title: "x", priority: "CRITICAL" }]

@@ -49,6 +49,7 @@ ERROR_RATE_WARNING_PCT = 1.0
 # literal by doubling it, so each of these carries \\ where the class has one.
 MSG_TRADE = r"OtherTransaction/Custom/App\\Message\\Trading\\StrategySubscriptionMessage"
 MSG_WEBHOOK = r"OtherTransaction/Custom/App\\Message\\Trading\\WebhookRequestMessage"
+MSG_OUTBOX = r"OtherTransaction/Custom/App\\Outbox\\OutboxMessage"
 TXN_WEBHOOK_RECEIVE = "WebTransaction/Custom/trading_webhook_receive"
 SYNTHETIC_GUID = "NjI3MTcwMHxTWU5USHxNT05JVE9SfGFmOTllM2Y1LTExOGUtNGU0Yy05MDA1LTllOGFhYzVjMjhkYg"
 
@@ -91,58 +92,80 @@ def build_query(account_id):
     """
     app = APP_NAME
     nrql = {
-        # Queue wait is what the alert policy pages on; duration is how long the
-        # work itself then took. Both matter and they fail differently -- a
-        # healthy wait with a climbing duration is a slow broker, the reverse is
-        # a backed-up queue -- so each pipeline reports the pair.
-        "liveQueueWait": (
-            f"SELECT average(queueWaitTime) AS v FROM Transaction "
-            f"WHERE appName = '{app}' AND name = '{MSG_TRADE}' AND mode = 'live' "
-            f"SINCE 5 minutes ago"
-        ),
-        "liveDuration": (
-            f"SELECT average(duration) * 1000 AS v FROM Transaction "
-            f"WHERE appName = '{app}' AND name = '{MSG_TRADE}' AND mode = 'live' "
-            f"SINCE 5 minutes ago"
-        ),
-        "paperQueueWait": (
-            f"SELECT average(queueWaitTime) AS v FROM Transaction "
-            f"WHERE appName = '{app}' AND name = '{MSG_TRADE}' AND mode = 'paper' "
-            f"SINCE 5 minutes ago"
-        ),
-        "paperDuration": (
-            f"SELECT average(duration) * 1000 AS v FROM Transaction "
-            f"WHERE appName = '{app}' AND name = '{MSG_TRADE}' AND mode = 'paper' "
-            f"SINCE 5 minutes ago"
-        ),
-        "webhookQueueWait": (
-            f"SELECT average(queueWaitTime) AS v FROM Transaction "
-            f"WHERE appName = '{app}' AND name = '{MSG_WEBHOOK}' SINCE 5 minutes ago"
-        ),
-        "webhookDuration": (
-            f"SELECT average(duration) * 1000 AS v FROM Transaction "
-            f"WHERE appName = '{app}' AND name = '{MSG_WEBHOOK}' SINCE 5 minutes ago"
-        ),
-        # Webhook receive is the front door -- the inbound TradingView alert
-        # hitting HTTP -- and it is reported on its own rather than averaged into
-        # web traffic. It is by far the highest-volume web transaction and an
-        # order of magnitude faster than a page render, so leaving it in the
-        # general figures buried both: the web average tracked the webhooks and
-        # the webhooks were invisible.
-        "webhookReceiveRate": (
+        # ---- Trading execution, in the order a trade actually travels:
+        #      receive the webhook over HTTP, relay it through the outbox, handle
+        #      it, then place the trade live or on paper. Each stage reports the
+        #      same three things so the row shape is identical down the section:
+        #      how fast it is flowing, how long it waited in the queue, and how
+        #      long the work itself took.
+        "receiveRate": (
             f"SELECT rate(count(*), 1 minute) AS v FROM Transaction "
             f"WHERE appName = '{app}' AND name = '{TXN_WEBHOOK_RECEIVE}' SINCE 5 minutes ago"
         ),
-        "webhookReceiveDuration": (
+        "receiveRun": (
             f"SELECT average(duration) * 1000 AS v FROM Transaction "
             f"WHERE appName = '{app}' AND name = '{TXN_WEBHOOK_RECEIVE}' SINCE 5 minutes ago"
         ),
-        "webhookReceiveP95": (
+        # The front door is synchronous HTTP with no queue in front of it, so it
+        # has no wait to report -- the p95 stands in as its second timing, since
+        # the average of something this fast and this frequent hides the tail.
+        "receiveP95": (
             f"SELECT percentile(duration, 95) * 1000 AS v FROM Transaction "
             f"WHERE appName = '{app}' AND name = '{TXN_WEBHOOK_RECEIVE}' SINCE 5 minutes ago"
         ),
-        # Everything else on HTTP, with the webhook front door excluded so this
-        # describes the app people actually click through.
+        "outboxRate": (
+            f"SELECT rate(count(*), 1 minute) AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND name = '{MSG_OUTBOX}' SINCE 5 minutes ago"
+        ),
+        "outboxWait": (
+            f"SELECT average(queueWaitTime) AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND name = '{MSG_OUTBOX}' SINCE 5 minutes ago"
+        ),
+        "outboxRun": (
+            f"SELECT average(duration) * 1000 AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND name = '{MSG_OUTBOX}' SINCE 5 minutes ago"
+        ),
+        "handleRate": (
+            f"SELECT rate(count(*), 1 minute) AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND name = '{MSG_WEBHOOK}' SINCE 5 minutes ago"
+        ),
+        "handleWait": (
+            f"SELECT average(queueWaitTime) AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND name = '{MSG_WEBHOOK}' SINCE 5 minutes ago"
+        ),
+        "handleRun": (
+            f"SELECT average(duration) * 1000 AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND name = '{MSG_WEBHOOK}' SINCE 5 minutes ago"
+        ),
+        "liveRate": (
+            f"SELECT rate(count(*), 1 minute) AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND name = '{MSG_TRADE}' AND mode = 'live' SINCE 5 minutes ago"
+        ),
+        "liveWait": (
+            f"SELECT average(queueWaitTime) AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND name = '{MSG_TRADE}' AND mode = 'live' SINCE 5 minutes ago"
+        ),
+        "liveRun": (
+            f"SELECT average(duration) * 1000 AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND name = '{MSG_TRADE}' AND mode = 'live' SINCE 5 minutes ago"
+        ),
+        "paperRate": (
+            f"SELECT rate(count(*), 1 minute) AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND name = '{MSG_TRADE}' AND mode = 'paper' SINCE 5 minutes ago"
+        ),
+        "paperWait": (
+            f"SELECT average(queueWaitTime) AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND name = '{MSG_TRADE}' AND mode = 'paper' SINCE 5 minutes ago"
+        ),
+        "paperRun": (
+            f"SELECT average(duration) * 1000 AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND name = '{MSG_TRADE}' AND mode = 'paper' SINCE 5 minutes ago"
+        ),
+
+        # ---- Traffic around the application. Web figures exclude the webhook
+        #      front door, which belongs to the pipeline above: it is the
+        #      highest-volume web transaction by an order of magnitude, and
+        #      averaged in here it buried both itself and everything else.
         "webThroughput": (
             f"SELECT rate(count(*), 1 minute) AS v FROM Transaction "
             f"WHERE appName = '{app}' AND transactionType = 'Web' "
@@ -157,18 +180,15 @@ def build_query(account_id):
             f"SELECT percentage(count(*), WHERE error IS true) AS v FROM Transaction "
             f"WHERE appName = '{app}' SINCE 5 minutes ago"
         ),
-        "tradesProcessed": (
-            f"SELECT count(*) AS v FROM Transaction "
-            f"WHERE appName = '{app}' AND name = '{MSG_TRADE}' SINCE 5 minutes ago"
-        ),
         "syntheticFailures": (
             f"SELECT filter(count(*), WHERE result = 'FAILED') AS v FROM SyntheticCheck "
             f"WHERE entityGuid IN ('{SYNTHETIC_GUID}') AND NOT isMute SINCE 5 minutes ago"
         ),
-        # Every external host the app called, one row each. Not filtered down to
-        # brokers: Stripe, SendGrid or Google auth going slow is an ops signal
-        # too, and the panel lists the lot slowest-first so whatever is dragging
-        # surfaces regardless of which category someone would have filed it under.
+
+        # ---- External services. Every host the app called, one row each, not
+        #      filtered to brokers: Stripe, SendGrid or Google auth going slow is
+        #      an ops signal too, and the panel lists the lot slowest-first so
+        #      whatever is dragging surfaces regardless of category.
         "externals": (
             f"SELECT average(apm.service.external.host.duration) * 1000 AS v, "
             f"rate(count(apm.service.external.host.duration), 1 minute) AS rpm FROM Metric "
@@ -348,32 +368,67 @@ def collect():
     ai = ((payload.get("data") or {}).get("actor") or {}).get("ai") or {}
     issues = (((ai.get("aiIssues") or {}).get("issues") or {}).get("issues")) or []
 
-    live = scalar(account, "liveQueueWait")
-    paper = scalar(account, "paperQueueWait")
-    webhook = scalar(account, "webhookQueueWait")
-    error_rate = scalar(account, "errorRate")
-    synthetic_failures = scalar(account, "syntheticFailures") or 0.0
     external_list = externals(account)
 
-    def run_detail(alias):
-        """Processing time, phrased for the dim column beside the queue wait.
+    # ---- The pipeline, in travel order. Every stage reports the same three
+    #      numbers so the rows line up; the front door has no queue in front of
+    #      it, so its wait is None and the p95 carries its second timing.
+    stages = [
+        {
+            "key": "receive",
+            "label": "Receive Webhook",
+            "rate": scalar(account, "receiveRate"),
+            "wait": None,
+            "run": scalar(account, "receiveRun"),
+            "extra": scalar(account, "receiveP95"),
+            "extraLabel": "p95",
+        },
+        {
+            "key": "outbox",
+            "label": "Outbox",
+            "rate": scalar(account, "outboxRate"),
+            "wait": scalar(account, "outboxWait"),
+            "run": scalar(account, "outboxRun"),
+        },
+        {
+            "key": "handle",
+            "label": "Handle Webhook",
+            "rate": scalar(account, "handleRate"),
+            "wait": scalar(account, "handleWait"),
+            "run": scalar(account, "handleRun"),
+        },
+        {
+            "key": "live",
+            "label": "Live Trades",
+            "rate": scalar(account, "liveRate"),
+            "wait": scalar(account, "liveWait"),
+            "run": scalar(account, "liveRun"),
+        },
+        {
+            "key": "paper",
+            "label": "Paper Trades",
+            "rate": scalar(account, "paperRate"),
+            "wait": scalar(account, "paperWait"),
+            "run": scalar(account, "paperRun"),
+        },
+    ]
 
-        Spelled out as "wait / run" because the row label names the pipeline
-        rather than either number: without the words, two bare millisecond
-        figures side by side say nothing about which is which.
-        """
-        value = scalar(account, alias)
-        return "" if value is None else f"{format_ms(value)} run"
+    # Grade each stage on its queue wait -- the thing that says "this step is
+    # backing up". Live, paper and handle mirror alert conditions exactly.
+    #
+    # Outbox does not: no condition covers it, so grading it against the same
+    # 1000ms is this widget's own extension. It is included because an outbox
+    # stall means accepted webhooks are not reaching the handlers at all, which
+    # is an incident whether or not New Relic pages for it -- but it does mean
+    # the dot can go red with nothing paging. Drop this stage's grade to "info"
+    # if the dot should mirror the pager and nothing else.
+    for stage in stages:
+        stage["grade"] = "info" if stage["wait"] is None else grade_queue(stage["wait"])
+
+    error_rate = scalar(account, "errorRate")
+    synthetic_failures = scalar(account, "syntheticFailures") or 0.0
 
     metrics = {
-        # Graded on the wait, which is what New Relic pages on; the duration
-        # rides along as context because the two fail differently.
-        "liveQueueWait": {"value": live, "unit": "ms", "grade": grade_queue(live),
-                          "label": "Live trades", "detail": run_detail("liveDuration")},
-        "paperQueueWait": {"value": paper, "unit": "ms", "grade": grade_queue(paper),
-                           "label": "Paper trades", "detail": run_detail("paperDuration")},
-        "webhookQueueWait": {"value": webhook, "unit": "ms", "grade": grade_queue(webhook),
-                             "label": "Webhook handling", "detail": run_detail("webhookDuration")},
         "errorRate": {"value": error_rate, "unit": "%", "grade": grade_error_rate(error_rate),
                       "label": "Error rate"},
         "synthetic": {
@@ -385,22 +440,10 @@ def collect():
             "grade": "critical" if synthetic_failures > 3 else ("warning" if synthetic_failures else "ok"),
             "label": "Homepage check",
         },
-
-        # The webhook front door, on its own.
-        "webhookReceiveRate": {"value": scalar(account, "webhookReceiveRate"), "unit": "/min",
-                               "grade": "info", "label": "Received"},
-        "webhookReceiveDuration": {"value": scalar(account, "webhookReceiveDuration"), "unit": "ms",
-                                   "grade": "info", "label": "Receive average"},
-        "webhookReceiveP95": {"value": scalar(account, "webhookReceiveP95"), "unit": "ms",
-                              "grade": "info", "label": "Receive p95"},
-
-        # Everything else.
         "webThroughput": {"value": scalar(account, "webThroughput"), "unit": "/min",
                           "grade": "info", "label": "Web throughput"},
         "webDuration": {"value": scalar(account, "webDuration"), "unit": "ms",
                         "grade": "info", "label": "Web response"},
-        "tradesProcessed": {"value": scalar(account, "tradesProcessed"), "unit": "",
-                            "grade": "info", "label": "Trades (5m)"},
     }
 
     # Open issues outrank everything: New Relic having decided something is
@@ -408,7 +451,7 @@ def collect():
     if issues:
         overall = "critical"
     else:
-        grades = [m["grade"] for m in metrics.values()]
+        grades = [m["grade"] for m in metrics.values()] + [st["grade"] for st in stages]
         if "critical" in grades:
             overall = "critical"
         elif "warning" in grades:
@@ -423,6 +466,7 @@ def collect():
         "ok": True,
         "status": overall,
         "app": APP_NAME,
+        "stages": stages,
         "metrics": metrics,
         # Ungraded on purpose. Nothing in New Relic defines what "slow" means
         # for an external call, and this widget does not invent thresholds -- so
@@ -445,25 +489,45 @@ def collect():
 
 
 def format_human(health):
-    lines = [f"{health['app']}: {health['status'].upper()}"]
-    for metric in health["metrics"].values():
-        value = metric["value"]
+    marks = {"ok": "OK", "warning": "WARN", "critical": "CRIT", "unknown": "--", "info": "  "}
+
+    def number(value, unit=""):
         if value is None:
-            shown = "no data"
-        elif metric["unit"] == "%":
-            shown = f"{value:.2f}%"
-        elif metric["unit"]:
-            shown = f"{value:,.0f}{metric['unit']}"
-        else:
-            shown = f"{value:,.0f}"
+            return "-"
+        if unit == "%":
+            return f"{value:.2f}%"
+        if unit == "ms":
+            return format_ms(value)
+        if unit == "/min":
+            return f"{value:,.0f}/min"
+        return f"{value:,.0f}"
+
+    lines = [f"{health['app']}: {health['status'].upper()}", "  trading execution"]
+    for stage in health["stages"]:
+        wait = number(stage["wait"], "ms")
+        run = number(stage["run"], "ms")
+        rate = number(stage["rate"], "/min")
+        extra = ""
+        if stage.get("extra") is not None:
+            extra = f"  {stage.get('extraLabel', 'extra')} {number(stage['extra'], 'ms')}"
+        lines.append(
+            f"    {marks[stage['grade']]:<5} {stage['label']:<17} "
+            f"{rate:>11}  wait {wait:>7}  run {run:>7}{extra}"
+        )
+
+    lines.append("  application traffic")
+    for metric in health["metrics"].values():
         detail = f" ({metric['detail']})" if metric.get("detail") else ""
-        mark = {"ok": "OK", "warning": "WARN", "critical": "CRIT",
-                "unknown": "--", "info": "  "}[metric["grade"]]
-        lines.append(f"  {mark:<5} {metric['label']:<20} {shown}{detail}")
+        lines.append(
+            f"    {marks[metric['grade']]:<5} {metric['label']:<17} "
+            f"{number(metric['value'], metric['unit']):>11}{detail}"
+        )
+
     for issue in health["issues"]:
         lines.append(f"  ISSUE {issue['priority']}: {issue['title']}")
+
     if health.get("externals"):
-        lines.append(f"  external APIs ({len(health['externals'])} called in the last 5 min, slowest first)")
+        lines.append(f"  external services ({len(health['externals'])} called in the last 5 min, slowest first)")
         for host in health["externals"]:
             lines.append(f"    {host['label']:<24} {host['ms']:>6.0f}ms {host['rpm']:>9,.0f}/min")
     return "\n".join(lines)

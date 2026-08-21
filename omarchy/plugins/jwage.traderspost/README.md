@@ -4,79 +4,92 @@ TradersPost production health as one dot on the Omarchy bar, with an ops
 cockpit behind it.
 
 ```
-bar:   ●                          <- green / amber / red / grey, and nothing else
+bar:   ●                        <- green / amber / red / grey, and nothing else
 
 click:
-┌──────────────────────────────────────────────────┐
-│ ● Healthy                              just now  │
-│   TradersPost production                         │
-│                                                  │
-│ ALERTS ON THESE                                  │
-│ Live trades              327ms run   4ms wait ●  │
-│ Paper trades             223ms run   4ms wait ●  │
-│ Webhook handling          21ms run   4ms wait ●  │
-│ Error rate                              0.00% ●  │
-│ Homepage check                              0 ●  │
-│                                                  │
-│ WEBHOOK RECEIVE · LAST 5 MIN                     │
-│ Received                              338/min    │
-│ Receive average                          11ms    │
-│ Receive p95                              14ms    │
-│                                                  │
-│ OTHER WEB TRAFFIC · LAST 5 MIN                   │
-│ Web throughput                        812/min    │
-│ Web response                            153ms    │
-│ Trades (5m)                             1,697    │
-│                                                  │
-│ EXTERNAL APIS · 23 ACTIVE          (scrolls)     │
-│ Binance                        1/min     680ms   │
-│ E*TRADE                       30/min     237ms   │
-│ Stripe                         6/min     203ms   │
-│ IBKR                       1,091/min     155ms   │
-│ …                                                │
-│                                                  │
-│ r refresh · o New Relic                 ⟳  ⧉    │
-└──────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────┐
+│ ● Healthy                                    just now  │
+│   TradersPost production                               │
+│                                                        │
+│ TRADING EXECUTION · LAST 5 MIN                         │
+│ Receive Webhook          172/min  11ms run   14ms p95  │
+│ Outbox                   172/min   6ms run  4ms wait ● │
+│ Handle Webhook           172/min  21ms run  4ms wait ● │
+│ Live Trades               43/min 373ms run  5ms wait ● │
+│ Paper Trades             127/min 172ms run  4ms wait ● │
+│                                                        │
+│ APPLICATION TRAFFIC · LAST 5 MIN                       │
+│ Error rate                                   0.00%   ● │
+│ Homepage check                                   0   ● │
+│ Web throughput                             639/min     │
+│ Web response                                 169ms     │
+│                                                        │
+│ EXTERNAL SERVICES · 19 ACTIVE            (scrolls)     │
+│ E*TRADE                          69/min      276ms     │
+│ TradeStation auth                 2/min      180ms     │
+│ IBKR                          1,028/min      155ms     │
+│ …                                                      │
+│                                                        │
+│ r refresh · o New Relic                       ⟳  ⧉    │
+└────────────────────────────────────────────────────────┘
 ```
 
 The bar is a bare dot on purpose: at bar scale the colour is the whole message,
 and a response time beside it was a number nobody acts on, changing every poll.
 Hover for a one-line summary, click for the detail.
 
-## What each block is for
+## The three sections
 
-- **ALERTS ON THESE** — the signals `TradersPost Policy` pages on. Each pipeline
-  row carries **both** numbers, because they fail differently: a healthy wait
-  with a climbing run time is a slow broker, the reverse is a backed-up queue.
-  Only the wait is graded, since that is what New Relic alerts on. The rows are
-  named for the pipeline rather than for either number, which is why the values
-  spell out "wait" and "run".
-- **WEBHOOK RECEIVE** — the inbound TradingView alert hitting HTTP, reported on
-  its own. It is by far the highest-volume web transaction and an order of
-  magnitude faster than a page render, so averaged in with the rest of HTTP each
-  hid the other: the web average tracked the webhooks, and the webhooks were
-  invisible. p95 is there because the average of something this fast and this
-  frequent hides the tail that actually matters.
-- **OTHER WEB TRAFFIC** — everything else on HTTP, with the webhook front door
-  excluded, so it describes the app people click through.
-- **EXTERNAL APIS** — every external host called in the window, slowest first,
-  not filtered to brokers: Stripe, SendGrid or Google auth going slow is an ops
-  signal too. Ungraded, because nothing in New Relic defines what "slow" means
-  for an external call and this widget does not invent thresholds — the ordering
-  does that work. The call rate sits beside each latency because it changes what
-  the latency means: 866ms on an endpoint taking 67 calls a minute is a
-  different problem from 866ms on an idle one.
+**1. Trading execution** is the path a trade actually travels, in travel order:
+
+```
+Receive Webhook  ->  Outbox  ->  Handle Webhook  ->  Live Trades
+(HTTP front door)   (relay)     (queue worker)      Paper Trades
+```
+
+Reading down the section follows one webhook from the front door to a placed
+order, so a stage backing up is located by *where it sits in the chain* rather
+than by hunting for a number. **This list is never re-sorted** — not by latency,
+not by severity. The sequence is the information.
+
+Every stage reports the same three figures, in the same order: how fast it is
+flowing, how long the work took (`run`), and how long it waited in the queue
+(`wait`). Those last two fail differently and that is why both are here — a
+healthy wait with a climbing run time is a slow broker; the reverse is a
+backed-up queue. Only the wait is graded, because that is what New Relic pages
+on. Watching the rates agree down the chain (172 / 172 / 172 above) is a free
+sanity check that nothing is being dropped between stages.
+
+Receive Webhook is the exception: it is synchronous HTTP with no queue in front
+of it, so it has no wait to report and its p95 stands in as the second timing —
+the average of something this fast and this frequent hides the tail that
+actually matters. It carries no dot, because there is nothing to judge it
+against.
+
+**2. Application traffic** is what is true *around* the pipeline: error rate,
+the synthetic homepage check, and web throughput and response for everything
+except the webhook front door, which belongs to the pipeline above. Excluding it
+matters — it is the highest-volume web transaction by an order of magnitude and
+much faster than a page render, so averaged in together each hid the other.
+
+**3. External services** is every external host called in the window, slowest
+first, not filtered to brokers: Stripe, SendGrid or Google auth going slow is an
+ops signal too. Ungraded, because nothing in New Relic defines what "slow" means
+for an external call and this widget does not invent thresholds — the ordering
+does that work. The call rate sits beside each latency because it changes what
+the latency means: 866ms on an endpoint taking 67 calls a minute is a different
+problem from 866ms on an idle one.
 
 Only that last section grows with the data, so it is the only one that scrolls —
-the panel stays a popup rather than a column reaching down the screen. The
-count in its header ("23 ACTIVE") is what says there is more below the fold.
+the panel stays a popup rather than a column reaching down the screen. The count
+in its header ("19 ACTIVE") is what says there is more below the fold.
 
 | File | What it is |
 |---|---|
 | `traderspost-health` | Fetches everything from New Relic NerdGraph in one request; prints JSON (`--json`) or a readable table. Runs standalone. |
 | `HOST_LABELS` (in the helper) | Pretty names for known external hosts, brokers taken from the dashboard's "Broker APIs" page. Unlisted hosts show their hostname — nothing is filtered, so a new dependency appears on its own the first time it is called. |
 | `Model.js` | Parsing, grading roll-up and number formatting. Qt-free so it can be tested under node. |
-| `test-model.js` | `node test-model.js` — 18 checks over Model.js. |
+| `test-model.js` | `node test-model.js` — 21 checks over Model.js. |
 | `BarWidget.qml` | The bar dot. Owns the poll timer, holds the last good payload. |
 | `Panel.qml` | The cockpit popup. Renders what BarWidget already fetched. |
 
@@ -106,9 +119,9 @@ unhealthy used by the widget:
 
 | Condition | Threshold | Shown as |
 |---|---|---|
-| Elevated Live Queue Wait Time | > 1000ms for 300s | Live trades (the wait) |
-| Elevated Paper Queue Wait Time | > 1000ms for 300s | Paper trades (the wait) |
-| Elevated Webhook Queue Wait Time | > 1000ms for 300s | Webhook handling (the wait) |
+| Elevated Live Queue Wait Time | > 1000ms for 300s | Live Trades (the wait) |
+| Elevated Paper Queue Wait Time | > 1000ms for 300s | Paper Trades (the wait) |
+| Elevated Webhook Queue Wait Time | > 1000ms for 300s | Handle Webhook (the wait) |
 | TradersPost Synthetic Check Failure | > 3 failures | Homepage check |
 
 Every query window is 5 minutes, matching the 300s those conditions use for
@@ -118,13 +131,20 @@ evaluation would mean by it. **Change a threshold in New Relic and change
 copies of one decision, and the whole point of the widget is that its colours
 agree with the pager.
 
-Two gradings are the widget's own, because New Relic has no equivalent:
+Three gradings are the widget's own, because New Relic has no equivalent:
 
 - **The amber tier.** Both alert terms fire at the same 1000ms and differ only
   in duration, so there is no "getting worse" signal to mirror. Amber is half
   the critical threshold, to give the dot something to say before the pager
   goes off.
 - **Error rate.** No condition covers it, so: amber at 1%, red at 5%.
+- **The Outbox stage.** No condition covers the outbox either, and it is graded
+  against the same 1000ms as the other queues. It is in because an outbox stall
+  means accepted webhooks are not reaching the handlers at all — an incident
+  whether or not New Relic pages for it. The cost is that the dot can go red
+  with nothing paging. If the dot should mirror the pager and nothing else, set
+  that stage's grade to `"info"` in `traderspost-health` (there is a comment on
+  the loop that does it).
 
 An open New Relic issue outranks every raw number: if something is actually
 paging, the dot is red regardless of how the last 5 minutes look.

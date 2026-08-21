@@ -12,22 +12,14 @@
 // Worst-first, so a roll-up is "the first status present in this list".
 var STATUS_ORDER = ["critical", "warning", "unknown", "ok"]
 
-// The order metrics appear in the panel: the three the alert policy actually
-// pages on first, then correctness (errors, synthetic), then the webhook front
-// door, then everything else on HTTP. Reading top to bottom should go from
-// "what wakes you up" to "what the system is doing".
+// The metric rows in the "application traffic" section, in order. The trading
+// pipeline is not here: it is an ordered list of its own (see normalizeStages),
+// because its order is the order a trade travels rather than a display choice.
 var METRIC_ORDER = [
-  "liveQueueWait",
-  "paperQueueWait",
-  "webhookQueueWait",
   "errorRate",
   "synthetic",
-  "webhookReceiveRate",
-  "webhookReceiveDuration",
-  "webhookReceiveP95",
   "webThroughput",
-  "webDuration",
-  "tradesProcessed"
+  "webDuration"
 ]
 
 var STATUS_WORDS = {
@@ -89,10 +81,44 @@ function parseHealth(raw) {
     status: String(payload.status || "unknown"),
     app: String(payload.app || ""),
     rows: rows,
+    stages: normalizeStages(payload.stages),
     externals: normalizeExternals(payload.externals),
     issues: normalizeIssues(payload.issues),
     error: ""
   }
+}
+
+// The trading pipeline, in the order the helper sent it -- which is the order a
+// trade travels: receive the webhook, relay it through the outbox, handle it,
+// then place it live or on paper. Never re-sorted: the sequence is the
+// information, so a stage backing up is read by where it sits in the chain.
+//
+// Each stage carries the same three figures, and the last column doubles up: a
+// queue wait for the queued stages, and the p95 for the front door, which is
+// synchronous HTTP with no queue to wait in. Only a wait is ever graded.
+function normalizeStages(stages) {
+  var out = []
+  for (var i = 0; i < (stages || []).length; i++) {
+    var stage = stages[i] || {}
+    var wait = Number(stage.wait)
+    var run = Number(stage.run)
+    var extra = Number(stage.extra)
+    var hasWait = stage.wait !== null && stage.wait !== undefined && isFinite(wait)
+    var hasExtra = stage.extra !== null && stage.extra !== undefined && isFinite(extra)
+
+    out.push({
+      key: String(stage.key || ""),
+      label: String(stage.label || stage.key || "unknown"),
+      grade: String(stage.grade || "info"),
+      rateText: formatRate(stage.rate),
+      runText: isFinite(run) ? formatMs(run) + " run" : "",
+      // One trailing figure, whichever the stage has: the graded queue wait, or
+      // the p95 where there is no queue.
+      tailText: hasWait ? formatMs(wait) + " wait" : (hasExtra ? formatMs(extra) + " " + String(stage.extraLabel || "p95") : ""),
+      graded: hasWait
+    })
+  }
+  return out
 }
 
 // External-call latencies, in the order the helper sent them (slowest first).
@@ -120,6 +146,7 @@ function failure(message) {
     status: "unknown",
     app: "",
     rows: [],
+    stages: [],
     externals: [],
     issues: [],
     error: String(message || "unavailable")
@@ -210,12 +237,26 @@ function summaryLine(health) {
   if (health.issues.length > 0)
     parts.push(health.issues.length + (health.issues.length === 1 ? " open issue" : " open issues"))
 
-  var interesting = ["errorRate", "liveQueueWait", "webThroughput"]
+  var interesting = ["errorRate", "webThroughput"]
   for (var i = 0; i < interesting.length; i++) {
     var row = findRow(health, interesting[i])
     if (row && row.text !== "—") parts.push(row.label + " " + row.text)
   }
+  // The pipeline's own summary is the slowest stage still moving trades, which
+  // is the thing worth putting in a notification.
+  var worst = null
+  for (var j = 0; j < (health.stages || []).length; j++) {
+    var stage = health.stages[j]
+    if (!stage.graded) continue
+    if (worst === null || rank(stage.grade) < rank(worst.grade)) worst = stage
+  }
+  if (worst) parts.push(worst.label + " " + worst.tailText)
   return parts.join(" · ")
+}
+
+function rank(grade) {
+  var index = STATUS_ORDER.indexOf(String(grade))
+  return index === -1 ? STATUS_ORDER.length : index
 }
 
 // ---- Freshness. A cockpit that silently shows five-minute-old numbers is
@@ -262,6 +303,7 @@ if (typeof module !== "undefined") {
     formatRate: formatRate,
     formatCount: formatCount,
     normalizeExternals: normalizeExternals,
+    normalizeStages: normalizeStages,
     barLabel: barLabel,
     findRow: findRow,
     summaryLine: summaryLine,
