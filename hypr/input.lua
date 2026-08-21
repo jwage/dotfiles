@@ -68,7 +68,7 @@ hl.device({
 })
 
 -- Slow the Magic Mouse pointer down. libinput's default (0) is tuned for a
--- mouse with far more travel per hand movement than this one; -0.4 keeps the
+-- mouse with far more travel per hand movement than this one; -0.45 keeps the
 -- adaptive acceleration curve (a fast flick still crosses the screen) but
 -- lowers the whole curve, so ordinary aiming takes deliberate motion. Range is
 -- -1.0 to 1.0. Set per device rather than as input.sensitivity so the laptop
@@ -83,7 +83,7 @@ hl.device({
 --   bluetoothctl devices | grep -i mouse
 hl.device({
   name = "dark-work-mouse",
-  sensitivity = -0.4,
+  sensitivity = -0.45,
 })
 
 -- The virtual touchpad that magicmouse-scroll emits Magic Mouse surface
