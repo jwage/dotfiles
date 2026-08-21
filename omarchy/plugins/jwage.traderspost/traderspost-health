@@ -1,0 +1,365 @@
+#!/usr/bin/env python3
+"""Collect TradersPost production health from New Relic, as one JSON line.
+
+Run by the jwage.traderspost bar widget on a timer, and useful on its own:
+
+    traderspost-health          # pretty, human-readable
+    traderspost-health --json   # the compact line the widget parses
+
+Everything the widget shows comes from one NerdGraph request, so a poll costs a
+single round trip no matter how many signals are on screen.
+
+The thresholds are not invented here. Account 6271700 has one alert policy
+("TradersPost Policy") whose conditions are the team's own definition of
+unhealthy -- live/paper/webhook queue wait above 1000ms, and synthetic check
+failures -- so those numbers are mirrored below rather than guessed at. Change
+them in New Relic and they should be changed here too; QUEUE_WAIT_CRITICAL_MS is
+the one that matters.
+
+The API key is never passed on the command line (it would show up in `ps` for
+every user on the box) and never lives in this repo. It comes from the
+environment when the shell already has it -- UWSM sources ~/.config/mcp-secrets.env
+into the session -- and is read out of that file directly otherwise, which is
+what makes this work when run from a plain terminal.
+"""
+
+import json
+import os
+import re
+import sys
+import urllib.error
+import urllib.request
+
+SECRETS_FILE = os.path.expanduser("~/.config/mcp-secrets.env")
+NERDGRAPH_URL = "https://api.newrelic.com/graphql"
+APP_NAME = "TradersPost Heroku Production"
+TIMEOUT_SECONDS = 12
+
+# Mirrors "Elevated Live/Paper/Webhook Queue Wait Time" in TradersPost Policy.
+QUEUE_WAIT_CRITICAL_MS = 1000
+# No warning tier exists in New Relic (both terms there fire at 1000ms, only the
+# duration differs), so this one is ours: half the critical threshold, to give
+# the bar dot something to say before the pager goes off.
+QUEUE_WAIT_WARNING_MS = 500
+
+ERROR_RATE_CRITICAL_PCT = 5.0
+ERROR_RATE_WARNING_PCT = 1.0
+
+# The message names are PHP FQCNs. NRQL escapes a backslash inside a string
+# literal by doubling it, so each of these carries \\ where the class has one.
+MSG_TRADE = r"OtherTransaction/Custom/App\\Message\\Trading\\StrategySubscriptionMessage"
+MSG_WEBHOOK = r"OtherTransaction/Custom/App\\Message\\Trading\\WebhookRequestMessage"
+TXN_WEBHOOK_RECEIVE = "WebTransaction/Custom/trading_webhook_receive"
+SYNTHETIC_GUID = "NjI3MTcwMHxTWU5USHxNT05JVE9SfGFmOTllM2Y1LTExOGUtNGU0Yy05MDA1LTllOGFhYzVjMjhkYg"
+
+
+def credentials():
+    """(api_key, account_id), preferring the environment over the secrets file."""
+    key = os.environ.get("NEW_RELIC_MCP_API_KEY", "").strip()
+    account = os.environ.get("NEW_RELIC_ACCOUNT_ID", "").strip()
+    if key and account:
+        return key, account
+
+    try:
+        with open(SECRETS_FILE, encoding="utf-8") as handle:
+            content = handle.read()
+    except OSError as error:
+        raise RuntimeError(f"cannot read {SECRETS_FILE}: {error.strerror}") from error
+
+    def find(name):
+        # Tolerates `export NAME=value`, quoted or bare, with trailing comments.
+        match = re.search(
+            rf"^\s*(?:export\s+)?{name}\s*=\s*[\"']?([^\"'\s#]+)", content, re.MULTILINE
+        )
+        return match.group(1) if match else ""
+
+    key = key or find("NEW_RELIC_MCP_API_KEY")
+    account = account or find("NEW_RELIC_ACCOUNT_ID")
+    if not key:
+        raise RuntimeError("NEW_RELIC_MCP_API_KEY not in env or mcp-secrets.env")
+    if not account:
+        raise RuntimeError("NEW_RELIC_ACCOUNT_ID not in env or mcp-secrets.env")
+    return key, account
+
+
+def build_query(account_id):
+    """One NerdGraph document: every signal the cockpit shows, aliased.
+
+    Windows are 5 minutes to match the 300s the alert conditions use for their
+    critical terms, so a value here crossing the threshold means the same thing
+    New Relic's own evaluation would mean by it.
+    """
+    app = APP_NAME
+    nrql = {
+        "liveQueueWait": (
+            f"SELECT average(queueWaitTime) AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND name = '{MSG_TRADE}' AND mode = 'live' "
+            f"SINCE 5 minutes ago"
+        ),
+        "paperQueueWait": (
+            f"SELECT average(queueWaitTime) AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND name = '{MSG_TRADE}' AND mode = 'paper' "
+            f"SINCE 5 minutes ago"
+        ),
+        "webhookQueueWait": (
+            f"SELECT average(queueWaitTime) AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND name = '{MSG_WEBHOOK}' SINCE 5 minutes ago"
+        ),
+        # rate() rather than count(): the widget shows a per-minute figure, and
+        # letting NRDB divide keeps it honest if the window ever changes.
+        "webThroughput": (
+            f"SELECT rate(count(*), 1 minute) AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND transactionType = 'Web' SINCE 5 minutes ago"
+        ),
+        "errorRate": (
+            f"SELECT percentage(count(*), WHERE error IS true) AS v FROM Transaction "
+            f"WHERE appName = '{app}' SINCE 5 minutes ago"
+        ),
+        "webDuration": (
+            f"SELECT average(duration) * 1000 AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND transactionType = 'Web' SINCE 5 minutes ago"
+        ),
+        "webhooksReceived": (
+            f"SELECT count(*) AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND name = '{TXN_WEBHOOK_RECEIVE}' SINCE 5 minutes ago"
+        ),
+        "tradesProcessed": (
+            f"SELECT count(*) AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND name = '{MSG_TRADE}' SINCE 5 minutes ago"
+        ),
+        "syntheticFailures": (
+            f"SELECT filter(count(*), WHERE result = 'FAILED') AS v FROM SyntheticCheck "
+            f"WHERE entityGuid IN ('{SYNTHETIC_GUID}') AND NOT isMute SINCE 5 minutes ago"
+        ),
+        # FACET returns one row per host; the widget names the worst one.
+        "slowestBroker": (
+            f"SELECT average(apm.service.external.host.duration) * 1000 AS v FROM Metric "
+            f"WHERE appName = '{app}' FACET `external.host` "
+            f"SINCE 5 minutes ago LIMIT 100"
+        ),
+    }
+
+    fields = "\n".join(
+        f'{alias}: nrql(query: {json.dumps(query)}) {{ results }}'
+        for alias, query in nrql.items()
+    )
+
+    # Open issues come from the AI/alerts side rather than NRQL: this is the
+    # authoritative "is anything actually paging right now", independent of
+    # whatever the raw numbers below look like.
+    return f"""
+{{
+  actor {{
+    account(id: {account_id}) {{
+      {fields}
+    }}
+    ai: account(id: {account_id}) {{
+      aiIssues {{
+        issues(filter: {{states: ACTIVATED}}) {{
+          issues {{ issueId title priority entityNames }}
+        }}
+      }}
+    }}
+  }}
+}}
+"""
+
+
+def fetch(api_key, query):
+    request = urllib.request.Request(
+        NERDGRAPH_URL,
+        data=json.dumps({"query": query}).encode("utf-8"),
+        headers={"Api-Key": api_key, "Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def scalar(account, alias):
+    """First result's single value, or None when the window held no data.
+
+    A quiet 5 minutes and a broken query both come back empty here; the
+    difference is that a broken query also lands in the `errors` array, which
+    main() surfaces instead of reporting a healthy silence.
+    """
+    try:
+        results = account[alias]["results"]
+    except (KeyError, TypeError):
+        return None
+    if not results:
+        return None
+    value = results[0].get("v")
+    return None if value is None else float(value)
+
+
+def worst_broker(account):
+    """(host, ms) for the slowest broker API, or (None, None)."""
+    try:
+        results = account["slowestBroker"]["results"]
+    except (KeyError, TypeError):
+        return None, None
+    worst_host, worst_ms = None, None
+    for row in results or []:
+        value = row.get("v")
+        host = row.get("facet") or row.get("external.host")
+        if value is None or host is None:
+            continue
+        if worst_ms is None or float(value) > worst_ms:
+            worst_host, worst_ms = str(host), float(value)
+    return worst_host, worst_ms
+
+
+def grade_queue(value):
+    if value is None:
+        return "unknown"
+    if value >= QUEUE_WAIT_CRITICAL_MS:
+        return "critical"
+    if value >= QUEUE_WAIT_WARNING_MS:
+        return "warning"
+    return "ok"
+
+
+def grade_error_rate(value):
+    if value is None:
+        return "unknown"
+    if value >= ERROR_RATE_CRITICAL_PCT:
+        return "critical"
+    if value >= ERROR_RATE_WARNING_PCT:
+        return "warning"
+    return "ok"
+
+
+def collect():
+    api_key, account_id = credentials()
+    payload = fetch(api_key, build_query(account_id))
+
+    # A GraphQL response can carry both data and errors. Only bail out when
+    # there is nothing usable -- a single failed sub-query should not blank the
+    # whole cockpit.
+    account = ((payload.get("data") or {}).get("actor") or {}).get("account")
+    if account is None:
+        errors = payload.get("errors") or [{"message": "no data returned"}]
+        raise RuntimeError("; ".join(str(e.get("message", e)) for e in errors[:3]))
+
+    ai = ((payload.get("data") or {}).get("actor") or {}).get("ai") or {}
+    issues = (((ai.get("aiIssues") or {}).get("issues") or {}).get("issues")) or []
+
+    live = scalar(account, "liveQueueWait")
+    paper = scalar(account, "paperQueueWait")
+    webhook = scalar(account, "webhookQueueWait")
+    error_rate = scalar(account, "errorRate")
+    synthetic_failures = scalar(account, "syntheticFailures") or 0.0
+    broker_host, broker_ms = worst_broker(account)
+
+    metrics = {
+        "liveQueueWait": {"value": live, "unit": "ms", "grade": grade_queue(live),
+                          "label": "Live queue wait"},
+        "paperQueueWait": {"value": paper, "unit": "ms", "grade": grade_queue(paper),
+                           "label": "Paper queue wait"},
+        "webhookQueueWait": {"value": webhook, "unit": "ms", "grade": grade_queue(webhook),
+                             "label": "Webhook queue wait"},
+        "errorRate": {"value": error_rate, "unit": "%", "grade": grade_error_rate(error_rate),
+                      "label": "Error rate"},
+        "webThroughput": {"value": scalar(account, "webThroughput"), "unit": "/min",
+                          "grade": "info", "label": "Web throughput"},
+        "webDuration": {"value": scalar(account, "webDuration"), "unit": "ms",
+                        "grade": "info", "label": "Web response"},
+        "webhooksReceived": {"value": scalar(account, "webhooksReceived"), "unit": "",
+                             "grade": "info", "label": "Webhooks (5m)"},
+        "tradesProcessed": {"value": scalar(account, "tradesProcessed"), "unit": "",
+                            "grade": "info", "label": "Trades (5m)"},
+        "synthetic": {
+            "value": synthetic_failures,
+            "unit": "",
+            # The alert fires above 3 failures in the window; any failure at all
+            # is worth a colour here, since one failed homepage check is already
+            # a user-visible event.
+            "grade": "critical" if synthetic_failures > 3 else ("warning" if synthetic_failures else "ok"),
+            "label": "Homepage check",
+        },
+        # Every external host the app talks to, not just brokers -- Stripe or a
+        # data vendor going slow is an ops signal too, so the label says API
+        # rather than broker and the host name carries the specifics.
+        "slowestBroker": {"value": broker_ms, "unit": "ms", "grade": "info",
+                          "label": "Slowest API", "detail": broker_host or ""},
+    }
+
+    # Open issues outrank everything: New Relic having decided something is
+    # paging is a stronger statement than any single number in this window.
+    if issues:
+        overall = "critical"
+    else:
+        grades = [m["grade"] for m in metrics.values()]
+        if "critical" in grades:
+            overall = "critical"
+        elif "warning" in grades:
+            overall = "warning"
+        elif all(g in ("unknown", "info") for g in grades):
+            # Nothing graded either way -- treat as no-data rather than healthy.
+            overall = "unknown"
+        else:
+            overall = "ok"
+
+    return {
+        "ok": True,
+        "status": overall,
+        "app": APP_NAME,
+        "metrics": metrics,
+        "issues": [
+            {
+                "title": str(issue.get("title") or ""),
+                "priority": str(issue.get("priority") or ""),
+                "entities": issue.get("entityNames") or [],
+            }
+            for issue in issues
+        ],
+        "thresholds": {
+            "queueWaitWarningMs": QUEUE_WAIT_WARNING_MS,
+            "queueWaitCriticalMs": QUEUE_WAIT_CRITICAL_MS,
+        },
+    }
+
+
+def format_human(health):
+    lines = [f"{health['app']}: {health['status'].upper()}"]
+    for metric in health["metrics"].values():
+        value = metric["value"]
+        if value is None:
+            shown = "no data"
+        elif metric["unit"] == "%":
+            shown = f"{value:.2f}%"
+        elif metric["unit"]:
+            shown = f"{value:,.0f}{metric['unit']}"
+        else:
+            shown = f"{value:,.0f}"
+        detail = f" ({metric['detail']})" if metric.get("detail") else ""
+        mark = {"ok": "OK", "warning": "WARN", "critical": "CRIT",
+                "unknown": "--", "info": "  "}[metric["grade"]]
+        lines.append(f"  {mark:<5} {metric['label']:<20} {shown}{detail}")
+    for issue in health["issues"]:
+        lines.append(f"  ISSUE {issue['priority']}: {issue['title']}")
+    return "\n".join(lines)
+
+
+def main():
+    as_json = "--json" in sys.argv[1:]
+    try:
+        health = collect()
+    except Exception as error:  # noqa: BLE001 - one line out, whatever went wrong
+        # Always valid JSON on stdout so the widget can show *why* it is grey
+        # rather than just failing to parse. Never echo the exception verbatim
+        # into a field the UI trusts beyond a message.
+        failure = {"ok": False, "status": "unknown", "error": str(error) or error.__class__.__name__}
+        if as_json:
+            print(json.dumps(failure, separators=(",", ":")))
+        else:
+            print(f"unavailable: {failure['error']}", file=sys.stderr)
+        return 1
+
+    print(json.dumps(health, separators=(",", ":")) if as_json else format_human(health))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -14,6 +14,12 @@ application. `install.sh` is OS-aware and only symlinks config.
   touching either; the finger-count split and `emulate_scroll_wheel=0` are
   what keep them from fighting. Do not re-run upstream's installer — it
   copies into `/opt` and would shadow the fork.
+- **TradersPost health widget** (`omarchy/plugins/jwage.traderspost/`) reads
+  the New Relic NerdGraph API. Its thresholds are a deliberate copy of the
+  conditions in New Relic's `TradersPost Policy` -- if you change one, change
+  the other, or the bar dot stops agreeing with the pager. QML changes need
+  `omarchy restart shell`; a plugin file save is not enough. Read
+  [`omarchy/plugins/jwage.traderspost/README.md`](omarchy/plugins/jwage.traderspost/README.md).
 - **Linux desktop files** are Omarchy/Hyprland only — never add them to the
   shared `install.sh` link list.
 - Do not commit secrets (`~/.config/mcp-secrets.env`, SSH keys, `gh` hosts).

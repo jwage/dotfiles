@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "jwage.traderspost",
+  "name": "TradersPost Health",
+  "version": "1.0.0",
+  "author": "jwage",
+  "description": "TradersPost production health from New Relic, with an ops cockpit popup",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "TradersPost Health",
+    "description": "Production health dot with queue waits, errors and broker latency",
+    "category": "Info",
+    "allowMultiple": false
+  }
+}
