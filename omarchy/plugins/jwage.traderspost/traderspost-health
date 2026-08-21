@@ -295,6 +295,20 @@ HOST_LABELS = {
     "api.topstepx.com": "TopstepX",
     "api.thefuturesdesk.projectx.com": "Futures Desk",
     "api.polygon.io": "Polygon data",
+    "api.crypto.com": "Crypto.com",
+    "api.tdameritrade.com": "TD Ameritrade",
+    "www.tradestation.com": "TradeStation web",
+    # The ProjectX family: each prop firm gets its own subdomain on the same
+    # platform, so they are named for the firm rather than for ProjectX.
+    "api.toponefutures.projectx.com": "TopOne Futures",
+    "api.lucidtrading.projectx.com": "Lucid Trading",
+    # An AWS PrivateLink endpoint. The vendor behind it is not identifiable from
+    # the hostname, so the label says what it is rather than guessing whose it
+    # is -- and a label matters more here than anywhere: the raw host is 90
+    # characters and would push every other column off the panel.
+    "vpce-08e6282de9d9c69a2-0y3v9m0w.vpce-svc-0c2e3e124b36585fa.us-east-1.vpce.amazonaws.com": "AWS PrivateLink",
+    "traderspost-data-exports.s3.amazonaws.com": "S3 data exports",
+    "api.getrewardful.com": "Rewardful",
     # Not brokers, but on request paths that matter, so listed alongside them
     # rather than hidden.
     "api.stripe.com": "Stripe",

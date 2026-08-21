@@ -82,7 +82,30 @@ together each hid the other. Error rate and the synthetic homepage check sit
 below it as plain rows, having nothing to say about rate or duration.
 
 **3. External services** is every external host called in the window, slowest
-first, not filtered to brokers: Stripe, SendGrid or Google auth going slow is an
+first, under a friendly name — every host this app has called in the last 30 days
+has one, and anything new shows its raw hostname until a label is added.
+`api.thefuturesdesk.projectx.com` reads as "Futures Desk"; the 90-character AWS
+PrivateLink endpoint reads as "AWS PrivateLink" rather than pushing every other
+column off the panel. To refresh the list after adding an integration:
+
+```sh
+# every host called in the last 30 days, with whether it has a label
+python3 - <<'EOF'
+import importlib.util, json
+from importlib.machinery import SourceFileLoader
+l = SourceFileLoader("h", "traderspost-health")
+h = importlib.util.module_from_spec(importlib.util.spec_from_loader("h", l)); l.exec_module(h)
+key, acct = h.credentials()
+q = ("SELECT count(apm.service.external.host.duration) FROM Metric WHERE appName = "
+     f"'{h.APP_NAME}' FACET `external.host` SINCE 30 days ago LIMIT 200")
+r = h.fetch(key, f'{{ actor {{ account(id: {acct}) {{ nrql(query: {json.dumps(q)}) {{ results }} }} }} }}')
+for row in r["data"]["actor"]["account"]["nrql"]["results"]:
+    host = str(row["external.host"])
+    print(("ok  " if host in h.HOST_LABELS else "TODO"), host)
+EOF
+```
+
+The list is not filtered to brokers: Stripe, SendGrid or Google auth going slow is an
 ops signal too. Ungraded, because nothing in New Relic defines what "slow" means
 for an external call and this widget does not invent thresholds — the ordering
 does that work. The call rate sits beside each latency because it changes what
@@ -106,7 +129,7 @@ in its header ("19 ACTIVE") is what says there is more below the fold.
 | File | What it is |
 |---|---|
 | `traderspost-health` | Fetches everything from New Relic NerdGraph in one request; prints JSON (`--json`) or a readable table. Runs standalone. |
-| `HOST_LABELS` (in the helper) | Pretty names for known external hosts, brokers taken from the dashboard's "Broker APIs" page. Unlisted hosts show their hostname — nothing is filtered, so a new dependency appears on its own the first time it is called. |
+| `HOST_LABELS` (in the helper) | Friendly names for external hosts — every one of the 37 seen in the last 30 days. Unlisted hosts fall back to their hostname, so a new dependency still appears the first time it is called; nothing is ever filtered out. |
 | `Model.js` | Parsing, grading roll-up and number formatting. Qt-free so it can be tested under node. |
 | `test-model.js` | `node test-model.js` — 26 checks over Model.js. |
 | `BarWidget.qml` | The bar dot. Owns the poll timer, holds the last good payload. |
