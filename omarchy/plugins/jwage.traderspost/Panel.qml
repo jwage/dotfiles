@@ -54,6 +54,7 @@ Panel {
   // and to METRIC_ORDER still left it invisible because this list had not been
   // updated too. One list, one place to change.
   readonly property var contextRows: (health && health.rows) || []
+  readonly property var traffic: (health && health.traffic) || []
   // Never re-sorted: the sequence is the information.
   readonly property var stages: (health && health.stages) || []
   readonly property var externals: (health && health.externals) || []
@@ -291,83 +292,7 @@ Panel {
 
           Repeater {
             model: root.stages
-
-            Item {
-              required property var modelData
-              width: content.width
-              height: Math.max(stageName.implicitHeight, stageTail.implicitHeight)
-
-              Text {
-                id: stageName
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                text: modelData.label
-                color: Qt.darker(root.contentForeground, 1.25)
-                font.family: root.contentFontFamily
-                font.pixelSize: Style.font.bodySmall
-                elide: Text.ElideRight
-                width: Math.min(implicitWidth, parent.width * 0.42)
-              }
-
-              Row {
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: Style.spacing.md
-
-                // Flow rate first, then how long the work took, then the queue
-                // wait -- so the eye lands on the graded number last, next to
-                // its dot.
-                Text {
-                  anchors.verticalCenter: parent.verticalCenter
-                  text: modelData.rateText
-                  color: Qt.darker(root.contentForeground, 1.8)
-                  font.family: root.contentFontFamily
-                  font.pixelSize: Style.font.caption
-                }
-
-                Text {
-                  anchors.verticalCenter: parent.verticalCenter
-                  text: modelData.runText
-                  color: Qt.darker(root.contentForeground, 1.55)
-                  font.family: root.contentFontFamily
-                  font.pixelSize: Style.font.caption
-                }
-
-                // The front door's p95, where there is one. Dim: a percentile
-                // has nothing to be judged against.
-                Text {
-                  anchors.verticalCenter: parent.verticalCenter
-                  visible: modelData.extraText !== ""
-                  text: modelData.extraText
-                  color: Qt.darker(root.contentForeground, 1.8)
-                  font.family: root.contentFontFamily
-                  font.pixelSize: Style.font.caption
-                }
-
-                Text {
-                  id: stageTail
-                  anchors.verticalCenter: parent.verticalCenter
-                  text: modelData.waitText
-                  color: root.stale
-                    ? Color.muted
-                    : (modelData.graded ? root.statusColor(modelData.grade) : Qt.darker(root.contentForeground, 1.55))
-                  font.family: root.contentFontFamily
-                  font.pixelSize: modelData.graded ? Style.font.bodySmall : Style.font.caption
-                  font.bold: modelData.grade === "warning" || modelData.grade === "critical"
-                }
-
-                // Only a message queue's wait carries a verdict. The web stages
-                // report request queue time, which has no threshold here.
-                Text {
-                  anchors.verticalCenter: parent.verticalCenter
-                  visible: modelData.graded
-                  text: "●"
-                  color: root.stale ? Color.muted : root.statusColor(modelData.grade)
-                  font.family: root.contentFontFamily
-                  font.pixelSize: Style.font.caption
-                }
-              }
-            }
+            delegate: stageRow
           }
         }
 
@@ -388,6 +313,13 @@ Panel {
         Column {
           width: parent.width
           spacing: Style.spacing.xs
+
+          // Same delegate as the pipeline: rate, run, wait is the same kind of
+          // measurement, and three separate metric rows said it worse.
+          Repeater {
+            model: root.traffic
+            delegate: stageRow
+          }
 
           Repeater {
             model: root.contextRows
@@ -552,6 +484,91 @@ Panel {
               onClicked: root.openDashboard()
             }
           }
+        }
+      }
+    }
+  }
+
+  // One pipeline stage, or anything else measured the same way: name on the
+  // left, then rate, how long the work took, an optional percentile, and the
+  // queue wait with its verdict dot. Shared by the trading pipeline and the web
+  // traffic row so the two read as the same kind of statement.
+  Component {
+    id: stageRow
+
+    Item {
+    required property var modelData
+    width: content.width
+    height: Math.max(stageName.implicitHeight, stageTail.implicitHeight)
+
+    Text {
+      id: stageName
+      anchors.left: parent.left
+      anchors.verticalCenter: parent.verticalCenter
+      text: modelData.label
+      color: Qt.darker(root.contentForeground, 1.25)
+      font.family: root.contentFontFamily
+      font.pixelSize: Style.font.bodySmall
+      elide: Text.ElideRight
+      width: Math.min(implicitWidth, parent.width * 0.42)
+    }
+
+    Row {
+      anchors.right: parent.right
+      anchors.verticalCenter: parent.verticalCenter
+      spacing: Style.spacing.md
+
+      // Flow rate first, then how long the work took, then the queue
+      // wait -- so the eye lands on the graded number last, next to
+      // its dot.
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        text: modelData.rateText
+        color: Qt.darker(root.contentForeground, 1.8)
+        font.family: root.contentFontFamily
+        font.pixelSize: Style.font.caption
+      }
+
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        text: modelData.runText
+        color: Qt.darker(root.contentForeground, 1.55)
+        font.family: root.contentFontFamily
+        font.pixelSize: Style.font.caption
+      }
+
+      // The front door's p95, where there is one. Dim: a percentile
+      // has nothing to be judged against.
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        visible: modelData.extraText !== ""
+        text: modelData.extraText
+        color: Qt.darker(root.contentForeground, 1.8)
+        font.family: root.contentFontFamily
+        font.pixelSize: Style.font.caption
+      }
+
+      Text {
+        id: stageTail
+        anchors.verticalCenter: parent.verticalCenter
+        text: modelData.waitText
+        color: root.stale
+          ? Color.muted
+          : (modelData.graded ? root.statusColor(modelData.grade) : Qt.darker(root.contentForeground, 1.55))
+        font.family: root.contentFontFamily
+        font.pixelSize: modelData.graded ? Style.font.bodySmall : Style.font.caption
+        font.bold: modelData.grade === "warning" || modelData.grade === "critical"
+      }
+
+      // Only a message queue's wait carries a verdict. The web stages
+      // report request queue time, which has no threshold here.
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        visible: modelData.graded
+        text: "●"
+        color: root.stale ? Color.muted : root.statusColor(modelData.grade)
+        font.family: root.contentFontFamily
+        font.pixelSize: Style.font.caption
         }
       }
     }

@@ -65,17 +65,18 @@ const healthy = JSON.stringify({
   status: "ok",
   app: "TradersPost Heroku Production",
   stages: [
-    { key: "receive", label: "Receive Webhook", rate: 184.2, wait: 1.6, waitGraded: false, run: 11.4, extra: 13.8, extraLabel: "p95", grade: "info" },
+    { key: "receive", label: "Receive Webhook", rate: 184.2, wait: 1.6, waitGraded: true, waitScale: "web", run: 11.4, extra: 13.8, extraLabel: "p95", grade: "ok" },
     { key: "outbox", label: "Outbox", rate: 183.1, wait: 4.1, waitGraded: true, run: 7.6, grade: "ok" },
     { key: "handle", label: "Handle Webhook", rate: 185.0, wait: 6.2, waitGraded: true, run: 21.8, grade: "ok" },
     { key: "live", label: "Live Trades", rate: 47.3, wait: 1420.5, waitGraded: true, run: 336.1, grade: "critical" },
     { key: "paper", label: "Paper Trades", rate: 141.2, wait: 6.0, waitGraded: true, run: 160.4, grade: "ok" }
   ],
   metrics: {
-    errorRate: { value: 0, unit: "%", grade: "ok", label: "Error rate" },
-    webDuration: { value: 107.8, unit: "ms", grade: "info", label: "Web response" },
-    webThroughput: { value: 1164.2, unit: "/min", grade: "info", label: "Web throughput" }
+    errorRate: { value: 0, unit: "%", grade: "ok", label: "Error rate" }
   },
+  traffic: [
+    { key: "web", label: "Web traffic", rate: 935.4, wait: 2.1, waitGraded: true, waitScale: "web", run: 198.3, grade: "ok" }
+  ],
   externals: [
     { host: "sandbox.tradier.com", label: "Tradier paper", ms: 787.4, rpm: 47.2 },
     { host: "api.stripe.com", label: "Stripe", ms: 262.0, rpm: 4.1 },
@@ -89,9 +90,23 @@ check("a healthy payload parses into ordered rows", () => {
   const health = Model.parseHealth(healthy)
   assert.strictEqual(health.ok, true)
   assert.strictEqual(health.status, "ok")
-  assert.deepStrictEqual(health.rows.map(r => r.key),
-    ["errorRate", "webThroughput", "webDuration"])  // webQueue absent from this fixture
+  assert.deepStrictEqual(health.rows.map(r => r.key), ["errorRate"])
   assert.strictEqual(Model.findRow(health, "errorRate").text, "0.00%")
+})
+
+check("web traffic parses into a stage-shaped row, not metric rows", () => {
+  const health = Model.parseHealth(healthy)
+  assert.strictEqual(health.traffic.length, 1)
+  const web = health.traffic[0]
+  assert.strictEqual(web.label, "Web traffic")
+  assert.strictEqual(web.rateText, "935/min")
+  assert.strictEqual(web.runText, "198ms run")
+  assert.strictEqual(web.waitText, "2ms wait")
+  // Coloured and dotted like the pipeline rows, on the web threshold scale.
+  assert.strictEqual(web.graded, true)
+  assert.strictEqual(web.grade, "ok")
+  // And it is no longer duplicated as metric rows.
+  assert.strictEqual(health.rows.some(r => r.key === "webThroughput"), false)
 })
 
 check("stages keep pipeline order, never sorted by value", () => {
@@ -109,10 +124,10 @@ check("each stage formats its figures, and only a message-queue wait is graded",
   assert.strictEqual(receive.rateText, "184/min")
   assert.strictEqual(receive.runText, "11ms run")
   assert.strictEqual(receive.extraText, "14ms p95")
-  // The front door reports request queue time, which has no threshold behind it
-  // -- shown, but never coloured or dotted.
+  // The front door's wait is request queue time, graded on its own scale rather
+  // than the message queues' -- but coloured and dotted like every other row.
   assert.strictEqual(receive.waitText, "2ms wait")
-  assert.strictEqual(receive.graded, false)
+  assert.strictEqual(receive.graded, true)
   // A message queue's wait is the thing the alert policy pages on.
   assert.strictEqual(live.waitText, "1.4s wait")
   assert.strictEqual(live.extraText, "")
@@ -178,12 +193,12 @@ check("a payload with no externals at all is an empty list, not a crash", () => 
 check("rows follow METRIC_ORDER, not the order the JSON happened to use", () => {
   const scrambled = JSON.stringify({
     ok: true, status: "ok", metrics: {
-      webDuration: { value: 1, unit: "ms", grade: "info", label: "Web response" },
+      synthetic: { value: 0, unit: "", grade: "ok", label: "Homepage check" },
       errorRate: { value: 0, unit: "%", grade: "ok", label: "Error rate" }
     }, issues: []
   })
   assert.deepStrictEqual(Model.parseHealth(scrambled).rows.map(r => r.key),
-    ["errorRate", "webDuration"])
+    ["errorRate", "synthetic"])
 })
 
 check("failures degrade to a no-data state with a reason, never a throw", () => {
@@ -200,6 +215,7 @@ check("failures degrade to a no-data state with a reason, never a throw", () => 
     assert.deepStrictEqual(health.rows, [])
     assert.deepStrictEqual(health.externals, [])
     assert.deepStrictEqual(health.stages, [])
+    assert.deepStrictEqual(health.traffic, [])
     assert.match(health.error, expectation)
   }
 })

@@ -42,6 +42,14 @@ QUEUE_WAIT_CRITICAL_MS = 1000
 # the bar dot something to say before the pager goes off.
 QUEUE_WAIT_WARNING_MS = 500
 
+# Request queue time (New Relic's queueDuration) needs its own scale: it lives in
+# single milliseconds, so the 1000ms above would call a genuine emergency
+# healthy. No alert condition covers it, so these are the widget's own numbers,
+# set against what this app actually does -- ~2ms average, ~2.4ms p95 -- so a
+# 10x rise is worth amber and a 50x rise is worth red.
+WEB_QUEUE_WARNING_MS = 25
+WEB_QUEUE_CRITICAL_MS = 100
+
 ERROR_RATE_CRITICAL_PCT = 5.0
 ERROR_RATE_WARNING_PCT = 1.0
 
@@ -356,6 +364,17 @@ def grade_queue(value):
     return "ok"
 
 
+def grade_web_queue(value):
+    """Request queue time, on its own scale -- never the message-queue one."""
+    if value is None:
+        return "unknown"
+    if value >= WEB_QUEUE_CRITICAL_MS:
+        return "critical"
+    if value >= WEB_QUEUE_WARNING_MS:
+        return "warning"
+    return "ok"
+
+
 def grade_error_rate(value):
     if value is None:
         return "unknown"
@@ -392,12 +411,11 @@ def collect():
             "label": "Receive Webhook",
             "rate": scalar(account, "receiveRate"),
             "wait": scalar(account, "receiveWait"),
-            # Ungraded, unlike the message queues below. This is request queue
-            # time, and the 1000ms the alert policy uses for a message queue
-            # would be a catastrophe here -- web queueing is measured in single
-            # milliseconds. There is no condition in New Relic covering it, so
-            # rather than invent a second threshold the number is shown plain.
-            "waitGraded": False,
+            # Graded like every other row, but on the web scale: this is request
+            # queue time, and judging it against the message queues' 1000ms would
+            # call an emergency healthy. See WEB_QUEUE_* above.
+            "waitGraded": True,
+            "waitScale": "web",
             "run": scalar(account, "receiveRun"),
             "extra": scalar(account, "receiveP95"),
             "extraLabel": "p95",
@@ -405,6 +423,7 @@ def collect():
         {
             "key": "outbox",
             "waitGraded": True,
+            "waitScale": "message",
             "label": "Outbox",
             "rate": scalar(account, "outboxRate"),
             "wait": scalar(account, "outboxWait"),
@@ -413,6 +432,7 @@ def collect():
         {
             "key": "handle",
             "waitGraded": True,
+            "waitScale": "message",
             "label": "Handle Webhook",
             "rate": scalar(account, "handleRate"),
             "wait": scalar(account, "handleWait"),
@@ -421,6 +441,7 @@ def collect():
         {
             "key": "live",
             "waitGraded": True,
+            "waitScale": "message",
             "label": "Live Trades",
             "rate": scalar(account, "liveRate"),
             "wait": scalar(account, "liveWait"),
@@ -429,6 +450,7 @@ def collect():
         {
             "key": "paper",
             "waitGraded": True,
+            "waitScale": "message",
             "label": "Paper Trades",
             "rate": scalar(account, "paperRate"),
             "wait": scalar(account, "paperWait"),
@@ -445,9 +467,32 @@ def collect():
     # is an incident whether or not New Relic pages for it -- but it does mean
     # the dot can go red with nothing paging. Drop this stage's grade to "info"
     # if the dot should mirror the pager and nothing else.
+    def grade_stage(stage):
+        if not (stage.get("waitGraded") and stage["wait"] is not None):
+            return "info"
+        scale = stage.get("waitScale", "message")
+        return grade_web_queue(stage["wait"]) if scale == "web" else grade_queue(stage["wait"])
+
     for stage in stages:
-        gradeable = stage.get("waitGraded") and stage["wait"] is not None
-        stage["grade"] = grade_queue(stage["wait"]) if gradeable else "info"
+        stage["grade"] = grade_stage(stage)
+
+    # Web traffic gets the same row shape as a pipeline stage -- rate, run, wait
+    # -- rather than three separate metric rows. It is the same kind of thing
+    # being measured, so it reads better in the same shape, and the three figures
+    # are only meaningful together anyway.
+    traffic = [
+        {
+            "key": "web",
+            "label": "Web traffic",
+            "rate": scalar(account, "webThroughput"),
+            "wait": scalar(account, "webQueue"),
+            "waitGraded": True,
+            "waitScale": "web",
+            "run": scalar(account, "webDuration"),
+        },
+    ]
+    for stage in traffic:
+        stage["grade"] = grade_stage(stage)
 
     error_rate = scalar(account, "errorRate")
     synthetic_failures = scalar(account, "syntheticFailures") or 0.0
@@ -464,14 +509,6 @@ def collect():
             "grade": "critical" if synthetic_failures > 3 else ("warning" if synthetic_failures else "ok"),
             "label": "Homepage check",
         },
-        "webThroughput": {"value": scalar(account, "webThroughput"), "unit": "/min",
-                          "grade": "info", "label": "Web throughput"},
-        # Same request queue time as the receive stage, for everything else on
-        # HTTP. Ungraded for the same reason.
-        "webQueue": {"value": scalar(account, "webQueue"), "unit": "ms",
-                     "grade": "info", "label": "Web queue"},
-        "webDuration": {"value": scalar(account, "webDuration"), "unit": "ms",
-                        "grade": "info", "label": "Web response"},
     }
 
     # Open issues outrank everything: New Relic having decided something is
@@ -479,7 +516,8 @@ def collect():
     if issues:
         overall = "critical"
     else:
-        grades = [m["grade"] for m in metrics.values()] + [st["grade"] for st in stages]
+        grades = ([m["grade"] for m in metrics.values()]
+                  + [st["grade"] for st in stages] + [st["grade"] for st in traffic])
         if "critical" in grades:
             overall = "critical"
         elif "warning" in grades:
@@ -495,6 +533,7 @@ def collect():
         "status": overall,
         "app": APP_NAME,
         "stages": stages,
+        "traffic": traffic,
         "metrics": metrics,
         # Ungraded on purpose. Nothing in New Relic defines what "slow" means
         # for an external call, and this widget does not invent thresholds -- so
@@ -533,8 +572,7 @@ def format_human(health):
     lines = [f"{health['app']}: {health['status'].upper()}", "  trading execution"]
     for stage in health["stages"]:
         wait = number(stage["wait"], "ms")
-        if stage["wait"] is not None and not stage.get("waitGraded"):
-            wait += "*"
+
         run = number(stage["run"], "ms")
         rate = number(stage["rate"], "/min")
         extra = ""
@@ -545,8 +583,13 @@ def format_human(health):
             f"{rate:>11}  wait {wait:>7}  run {run:>7}{extra}"
         )
 
-    lines.append("  (* request queue time -- not graded, see README)")
     lines.append("  application traffic")
+    for stage in health["traffic"]:
+        lines.append(
+            f"    {marks[stage['grade']]:<5} {stage['label']:<17} "
+            f"{number(stage['rate'], '/min'):>11}  wait {number(stage['wait'], 'ms'):>7}"
+            f"  run {number(stage['run'], 'ms'):>7}"
+        )
     for metric in health["metrics"].values():
         detail = f" ({metric['detail']})" if metric.get("detail") else ""
         lines.append(

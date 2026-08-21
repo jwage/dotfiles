@@ -17,10 +17,7 @@ var STATUS_ORDER = ["critical", "warning", "unknown", "ok"]
 // because its order is the order a trade travels rather than a display choice.
 var METRIC_ORDER = [
   "errorRate",
-  "synthetic",
-  "webThroughput",
-  "webQueue",
-  "webDuration"
+  "synthetic"
 ]
 
 var STATUS_WORDS = {
@@ -83,6 +80,10 @@ function parseHealth(raw) {
     app: String(payload.app || ""),
     rows: rows,
     stages: normalizeStages(payload.stages),
+    // Same shape as a pipeline stage, because it is the same kind of measurement
+    // -- rate, run, wait -- and reads better in the same row than as three
+    // separate metric rows.
+    traffic: normalizeStages(payload.traffic),
     externals: normalizeExternals(payload.externals),
     issues: normalizeIssues(payload.issues),
     error: ""
@@ -153,6 +154,7 @@ function failure(message) {
     app: "",
     rows: [],
     stages: [],
+    traffic: [],
     externals: [],
     issues: [],
     error: String(message || "unavailable")
