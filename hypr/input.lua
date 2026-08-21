@@ -67,6 +67,25 @@ hl.device({
   kb_options = "compose:caps,shift:both_capslock_cancel,altwin:swap_alt_win",
 })
 
+-- Slow the Magic Mouse pointer down. libinput's default (0) is tuned for a
+-- mouse with far more travel per hand movement than this one; -0.4 keeps the
+-- adaptive acceleration curve (a fast flick still crosses the screen) but
+-- lowers the whole curve, so ordinary aiming takes deliberate motion. Range is
+-- -1.0 to 1.0. Set per device rather than as input.sensitivity so the laptop
+-- touchpad, which is already fine, is not dragged down with it.
+--
+-- "dark-work-mouse" is the Magic Mouse's *Bluetooth alias*, lowercased and
+-- hyphenated. That alias is user-editable, and Hyprland device rules can only
+-- match on the name -- rename the mouse in Bluetooth settings and this rule
+-- stops applying, silently. (magicmouse-scroll matches on the USB/BT vendor and
+-- product IDs instead, for exactly this reason, but that option does not exist
+-- here.) If the pointer speed ever reverts on its own, check the alias first:
+--   bluetoothctl devices | grep -i mouse
+hl.device({
+  name = "dark-work-mouse",
+  sensitivity = -0.4,
+})
+
 -- The virtual touchpad that magicmouse-scroll emits Magic Mouse surface
 -- scrolling through. Replaying the surface as a real multitouch touchpad is
 -- what buys momentum: libinput then reports finger-source scroll with a true
