@@ -127,6 +127,66 @@ cursor --install-extension /tmp/ext.vsix
 
 e.g. publisher/name `whatwedo`/`twig` and `gerane`/`theme-sunburst`.
 
+### Magic Mouse gestures
+
+**Agents:** Magic Mouse support is **not tracked here** — nothing in this
+repo installs or configures it, and `install.sh` gives a new machine no
+Magic Mouse support at all. It comes from
+[brenoperucchi/magic-mouse-gestures](https://github.com/brenoperucchi/magic-mouse-gestures).
+Read that repo's own README for the current install instructions rather
+than following steps copied in here; it owns them and they change. Set it
+up on a new machine, then apply the two local preferences below.
+
+You cannot run its installer yourself. It calls `sudo` internally and
+aborts if started as root, so `pkexec` is no help and a password prompt
+needs a real terminal — hand it to the user to run (`! ./install.sh`).
+Warn them first that it disconnects and reconnects the mouse over
+Bluetooth and does `modprobe -r hid_magicmouse`, so they want the trackpad
+within reach. It also needs `wtype` and a Wayland session.
+
+Two upstream defaults to change afterward:
+
+- `MIN_FINGERS=1` fires browser Back on one-finger horizontal motion, and
+  a finger rests on that surface whenever the mouse moves. Use
+  `systemctl --user edit magic-mouse-gestures` to set
+  `Environment="MIN_FINGERS=2"` for macOS-style two-finger swipes.
+- Its udev rule sets `MODE="0666"` on the mouse's hidraw node, exposing
+  every touch and button to any local process. A per-user ACL is enough.
+  The replacement must sort below `73-seat-late.rules`, which is what turns
+  the tag into an ACL — a `99-` file adds it too late — so put this in
+  `/etc/udev/rules.d/70-magic-mouse.rules` and delete upstream's `99-`
+  rule:
+
+  ```
+  KERNEL=="hidraw*", KERNELS=="0005:004C:0269.*", MODE="0600", TAG+="uaccess"
+  ```
+
+  State `MODE` explicitly: udev only applies a mode when a rule asks for
+  one, so deleting upstream's `0666` rule does **not** by itself take world
+  access back off a node that already exists. Apply with `udevadm control
+  --reload-rules && udevadm trigger --action=add --subsystem-match=hidraw`,
+  which avoids a Bluetooth reconnect.
+
+  On a node created before the swap, fix the leftover mode with `setfacl -m
+  u:$USER:rw /dev/hidrawN` — not `chmod`, which zeroes the ACL mask and
+  silently nullifies the ACL (`getfacl` then shows `#effective:---` while
+  an already-running daemon keeps working off its open fd, so it looks
+  fine until the next restart). Verify with `getfacl`: want `other::---`
+  and no `#effective:---`.
+
+**It maps horizontal swipes to Alt+Left/Right and nothing else.** It emits
+no scroll events, so there is no momentum or kinetic scrolling, and no
+amount of configuring it will add any. `hid-magicmouse` digests the touch
+surface into plain wheel ticks (`REL_WHEEL`), and GTK/Chromium/Qt only
+apply inertia to finger-source scroll from a real multitouch device —
+which is why the XPS trackpad flings and the Magic Mouse does not. The
+retired `magicmouse-scroll` daemon here solved it by replaying surface
+touches through a virtual multitouch touchpad (impersonating the XPS
+touchpad's own vendor/product IDs) so libinput and the toolkits supplied
+the fling themselves. Recover it from `be2c504` if that is wanted back; it
+reads hidraw non-exclusively and emits no keys, so it can run alongside
+the gesture daemon.
+
 ### PHP
 
 **Agents:** follow [`php/README.md`](php/README.md) and run `php/setup.sh`.

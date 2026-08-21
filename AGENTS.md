@@ -5,6 +5,9 @@ application. `install.sh` is OS-aware and only symlinks config.
 
 - **PHP on the host** (Composer, phpunit): read [`php/README.md`](php/README.md)
   and run `php/setup.sh`. Do not put `extension=` in shared `php/cli.ini`.
+- **Magic Mouse** support is external and untracked: see the Magic Mouse
+  section in [`README.md`](README.md) and follow the upstream repo's own
+  install instructions. Its installer needs a real terminal for `sudo`.
 - **Linux desktop files** are Omarchy/Hyprland only — never add them to the
   shared `install.sh` link list.
 - Do not commit secrets (`~/.config/mcp-secrets.env`, SSH keys, `gh` hosts).
