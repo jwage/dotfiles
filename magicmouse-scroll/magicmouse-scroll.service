@@ -1,9 +1,9 @@
 [Unit]
-Description=Momentum scrolling daemon for the Apple Magic Mouse
+Description=Scroll-only touchpad bridge for the Apple Magic Mouse
 After=graphical-session.target
 
 [Service]
-ExecStart=%h/.local/bin/magicmouse-scroll-daemon
+ExecStart=%h/.local/bin/magicmouse-scroll-observer
 Restart=on-failure
 RestartSec=2
 

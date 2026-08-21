@@ -49,9 +49,9 @@ Linux / Omarchy only:
 | `bash/bashrc` | Kept as a fallback for non-interactive/bash-specific tooling (sources Arch bootstrap, then `shell/env.sh`); zsh is the default login shell |
 | `XCompose` | Compose key sequences |
 | `etc/modprobe.d/hid_apple.conf` | `fnmode=1` so the Apple keyboard's F-row acts as media/brightness keys by default (macOS-style); hold Fn for literal F1-F12 |
-| `etc/modprobe.d/hid_magicmouse.conf` | Magic Mouse scroll tuning (`scroll_acceleration=0 scroll_speed=32`) — see `hypr/input.lua` for why |
-| `etc/udev/rules.d/99-uinput.rules` | Lets the `input` group open `/dev/uinput` so the scroll daemon below can run as a normal user |
-| `magicmouse-scroll/` | Userspace daemon giving the Magic Mouse real macOS-style momentum scrolling — libinput won't run touch-gesture scrolling on a device it classifies as a mouse, so this grabs it exclusively, passes pointer/clicks through, and computes kinetic scroll from the raw touch data itself. `daemon.py` → `~/.local/bin/magicmouse-scroll-daemon`, `magicmouse-scroll.service` is a systemd `--user` unit. See `hypr/input.lua`'s `magicmouse-scroll-daemon` device block for the paired pointer/scroll tuning |
+| `etc/modprobe.d/hid_magicmouse.conf` | Keeps native Magic Mouse clicks but disables kernel wheel emulation so the scroll-only observer can emit native touchpad gestures |
+| `etc/udev/rules.d/99-uinput.rules` | Lets the scroll observer create its virtual touchpad as the normal user; physical pointer and button events never use it |
+| `magicmouse-scroll/` | Non-exclusive, scroll-only Magic Mouse observer. Pointer motion and buttons go directly to Hyprland; only surface motion is emitted as a Dell-XPS-shaped virtual touchpad |
 | `dconf/interface.ini` | GTK/GNOME interface settings (theme, cursor, `text-scaling-factor`) — dconf lives in a private binary database, not a plain file, so this is a `dconf dump`/`dconf load` snapshot rather than a symlink; `install.sh` applies it with `dconf load` |
 
 macOS only:

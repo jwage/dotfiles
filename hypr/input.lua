@@ -71,11 +71,10 @@ hl.device({
 -- This is the Apple Magic Mouse, paired over Bluetooth as "Jonathan's Magic
 -- Mouse" — Hyprland derives the device name from that Bluetooth name, so it
 -- has to match exactly (curly apostrophe included) or this override silently
--- matches nothing. Its scroll surface is wheel-emulated by the kernel's
--- hid_magicmouse driver (see /etc/modprobe.d/hid_magicmouse.conf for the
--- scroll_speed/scroll_acceleration tuning), so libinput sees plain wheel
--- ticks rather than smooth touchpad motion. scroll_factor here softens
--- those ticks to feel closer to the trackpad's scroll_factor = 0.4.
+-- matches nothing. Buttons and pointer motion stay on this native device.
+-- Surface scrolling is observed non-exclusively by magicmouse-scroll and
+-- emitted through a separate virtual touchpad, so this path never recreates
+-- or delays clicks.
 --
 -- accel_profile = "flat" drops libinput's own acceleration curve, which
 -- ramps up far more aggressively on fast flicks than macOS's does — that
@@ -88,23 +87,17 @@ hl.device({
   name = "jonathan’s-magic-mouse",
   accel_profile = "flat",
   sensitivity = -0.5,
-  scroll_factor = 0.4,
 })
 
--- While magicmouse-scroll-daemon (see ../../magicmouse-scroll/) is running,
--- it exclusively grabs the physical device above so it can compute momentum
--- scrolling from the raw touch surface -- libinput then only ever sees the
--- synthetic device it creates, so the pointer tuning has to be duplicated
--- here under that device's name or the cursor silently reverts to
--- libinput's un-tuned defaults. Scroll isn't re-tuned here: the daemon
--- already converts touch movement to wheel notches at a calibrated scale
--- (and inverts direction itself -- setting natural_scroll here had no
--- observed effect on this synthetic device, so an additional scroll_factor
--- or natural_scroll would just double up on what the daemon already does).
+-- This virtual device carries Magic Mouse scroll gestures only. Omarchy
+-- enables touchpad tapping globally, which would turn a short generated
+-- two-finger sequence into an accidental click. It must have no click path;
+-- the physical Magic Mouse continues to provide all buttons directly.
 hl.device({
-  name = "magicmouse-scroll-daemon",
-  accel_profile = "flat",
-  sensitivity = -0.5,
+  name = "magicmouse-scroll-touchpad",
+  tap_to_click = false,
+  tap_and_drag = false,
+  clickfinger_behavior = false,
 })
 
 -- App-specific touchpad scroll speeds.
