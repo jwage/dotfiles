@@ -77,6 +77,8 @@ LINUX_LINKS=(
   "omarchy/plugins/jwage.clock/Panel.qml:$HOME/.config/omarchy/plugins/jwage.clock/Panel.qml"
   "omarchy/themes/traderspost/colors.toml:$HOME/.config/omarchy/themes/traderspost/colors.toml"
   "omarchy/themes/traderspost/backgrounds/traderspost.png:$HOME/.config/omarchy/themes/traderspost/backgrounds/traderspost.png"
+  "magicmouse-scroll/scroll_observer.py:$HOME/.local/bin/magicmouse-scroll-observer"
+  "magicmouse-scroll/magicmouse-scroll.service:$HOME/.config/systemd/user/magicmouse-scroll.service"
   "bluetooth-hid-reconnect/reconnect.sh:$HOME/.local/bin/bluetooth-hid-reconnect"
   "bluetooth-hid-reconnect/bluetooth-hid-reconnect.service:$HOME/.config/systemd/user/bluetooth-hid-reconnect.service"
   "bash/bashrc:$HOME/.bashrc"
@@ -115,7 +117,9 @@ fi
 # script with that exact keyboard/mouse.
 if [[ "$OS" != "Darwin" ]]; then
   for entry in \
-    "etc/modprobe.d/hid_apple.conf:/etc/modprobe.d/hid_apple.conf"
+    "etc/modprobe.d/hid_apple.conf:/etc/modprobe.d/hid_apple.conf" \
+    "etc/modprobe.d/hid_magicmouse.conf:/etc/modprobe.d/hid_magicmouse.conf" \
+    "etc/udev/rules.d/99-uinput.rules:/etc/udev/rules.d/99-uinput.rules"
   do
     src="$REPO_DIR/${entry%%:*}"
     dest="${entry#*:}"

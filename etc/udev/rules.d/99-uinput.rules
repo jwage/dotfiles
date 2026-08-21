@@ -1,0 +1,3 @@
+# Lets members of the input group create the scroll-only virtual touchpad.
+# Physical Magic Mouse pointer and button events do not pass through uinput.
+KERNEL=="uinput", GROUP="input", MODE="0660"

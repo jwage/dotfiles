@@ -49,6 +49,9 @@ Linux / Omarchy only:
 | `bash/bashrc` | Kept as a fallback for non-interactive/bash-specific tooling (sources Arch bootstrap, then `shell/env.sh`); zsh is the default login shell |
 | `XCompose` | Compose key sequences |
 | `etc/modprobe.d/hid_apple.conf` | `fnmode=1` so the Apple keyboard's F-row acts as media/brightness keys by default (macOS-style); hold Fn for literal F1-F12 |
+| `etc/modprobe.d/hid_magicmouse.conf` | Keeps native Magic Mouse clicks but disables kernel wheel emulation (`emulate_scroll_wheel=0`) so surface scrolling comes from `magicmouse-scroll`'s virtual touchpad instead of stacking with it |
+| `etc/udev/rules.d/99-uinput.rules` | Lets the scroll observer create its virtual touchpad as the normal user; physical pointer and button events never use it |
+| `magicmouse-scroll/` | Non-exclusive, scroll-only Magic Mouse observer — this is what gives the mouse momentum/kinetic scrolling. Pointer motion and buttons go directly to Hyprland; only surface motion is emitted, as a Dell-XPS-shaped virtual touchpad |
 | `dconf/interface.ini` | GTK/GNOME interface settings (theme, cursor, `text-scaling-factor`) — dconf lives in a private binary database, not a plain file, so this is a `dconf dump`/`dconf load` snapshot rather than a symlink; `install.sh` applies it with `dconf load` |
 
 macOS only:
@@ -174,18 +177,43 @@ Two upstream defaults to change afterward:
   fine until the next restart). Verify with `getfacl`: want `other::---`
   and no `#effective:---`.
 
-**It maps horizontal swipes to Alt+Left/Right and nothing else.** It emits
-no scroll events, so there is no momentum or kinetic scrolling, and no
-amount of configuring it will add any. `hid-magicmouse` digests the touch
-surface into plain wheel ticks (`REL_WHEEL`), and GTK/Chromium/Qt only
-apply inertia to finger-source scroll from a real multitouch device —
-which is why the XPS trackpad flings and the Magic Mouse does not. The
-retired `magicmouse-scroll` daemon here solved it by replaying surface
-touches through a virtual multitouch touchpad (impersonating the XPS
-touchpad's own vendor/product IDs) so libinput and the toolkits supplied
-the fling themselves. Recover it from `be2c504` if that is wanted back; it
-reads hidraw non-exclusively and emits no keys, so it can run alongside
-the gesture daemon.
+**It maps horizontal swipes to Alt+Left/Right and nothing else** — it emits
+no scroll events. Momentum comes from `magicmouse-scroll/` in this repo
+instead, and the two split the surface by finger count:
+
+| Fingers | Owner | Result |
+|---|---|---|
+| 1 | `magicmouse-scroll` | scroll, with kinetic fling |
+| 2 | `magic-mouse-gestures` | `Alt+Left` / `Alt+Right` |
+
+That split is load-bearing in both directions. `MIN_FINGERS=2` keeps the
+gesture daemon off one-finger scrolling, and `MAX_SCROLL_CONTACTS = 1` in
+`scroll_observer.py` keeps the scroll observer off two-finger swipes —
+without both, one two-finger flick would scroll sideways *and* navigate
+back. Neither daemon grabs the device (one reads evdev, the other hidraw,
+both non-exclusively), so they coexist and the physical mouse keeps
+delivering its own pointer motion and clicks.
+
+Why a virtual touchpad rather than synthesized fling: `hid-magicmouse`
+digests the surface into plain wheel ticks (`REL_WHEEL`), and GTK/Chromium/
+Qt only apply inertia to finger-source scroll from a real multitouch
+device. Replaying touches through a uinput multitouch touchpad — shaped to
+the XPS's measured geometry — makes libinput report finger-source scroll
+with a true touch-end, so the toolkits supply the fling themselves. An
+earlier revision hand-rolled a decay curve instead; that is what `be2c504`
+replaced, and the toolkit path feels closer to macOS.
+
+This is also why `etc/modprobe.d/hid_magicmouse.conf` sets
+`emulate_scroll_wheel=0` and why that file, not the gesture repo's
+`hid-magicmouse.conf`, owns the module options — two `options` lines for
+one module leave the winner decided by which filename sorts last in
+`/etc/modprobe.d` (`-` before `_`). If both exist, delete the gesture
+repo's copy. The parameter is runtime-writable, so it can be flipped
+without `rmmod`/`modprobe` or a Bluetooth reconnect:
+
+```sh
+echo 0 | sudo tee /sys/module/hid_magicmouse/parameters/emulate_scroll_wheel
+```
 
 ### PHP
 

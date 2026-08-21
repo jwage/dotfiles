@@ -67,6 +67,23 @@ hl.device({
   kb_options = "compose:caps,shift:both_capslock_cancel,altwin:swap_alt_win",
 })
 
+-- The virtual touchpad that magicmouse-scroll emits Magic Mouse surface
+-- scrolling through. Replaying the surface as a real multitouch touchpad is
+-- what buys momentum: libinput then reports finger-source scroll with a true
+-- touch-end, so GTK/Chromium/Qt apply their own kinetic fling. The kernel's
+-- own wheel emulation (emulate_scroll_wheel) is off so the two do not stack.
+--
+-- It must have no click path. Omarchy enables touchpad tapping globally, and
+-- this device's scroll gestures are a generated two-finger sequence that
+-- tapping would turn into stray clicks. The physical mouse keeps providing
+-- every button directly; nothing here recreates or delays a click.
+hl.device({
+  name = "magicmouse-scroll-touchpad",
+  tap_to_click = false,
+  tap_and_drag = false,
+  clickfinger_behavior = false,
+})
+
 -- App-specific touchpad scroll speeds.
 -- o.window("(Alacritty|kitty|foot)", { scroll_touchpad = 1.5 })
 -- o.window("com.mitchellh.ghostty", { scroll_touchpad = 0.2 })
