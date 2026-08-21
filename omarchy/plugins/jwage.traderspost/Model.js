@@ -74,17 +74,26 @@ function parseHealth(raw) {
     })
   }
 
+  var stages = normalizeStages(payload.stages)
+  // Same shape as a pipeline stage, because it is the same kind of measurement
+  // -- rate, run, wait -- and reads better in the same row than as three
+  // separate metric rows.
+  var traffic = normalizeStages(payload.traffic)
+  var externals = normalizeExternals(payload.externals)
+
+  // One alignment pass over both stage-shaped groups, so the web traffic row's
+  // columns land under the pipeline's rather than beside them.
+  alignColumns([stages, traffic], ["rateText", "runText", "waitText"])
+  alignColumns([externals], ["rateText", "text"])
+
   return {
     ok: true,
     status: String(payload.status || "unknown"),
     app: String(payload.app || ""),
     rows: rows,
-    stages: normalizeStages(payload.stages),
-    // Same shape as a pipeline stage, because it is the same kind of measurement
-    // -- rate, run, wait -- and reads better in the same row than as three
-    // separate metric rows.
-    traffic: normalizeStages(payload.traffic),
-    externals: normalizeExternals(payload.externals),
+    stages: stages,
+    traffic: traffic,
+    externals: externals,
     issues: normalizeIssues(payload.issues),
     error: ""
   }
@@ -95,18 +104,15 @@ function parseHealth(raw) {
 // then place it live or on paper. Never re-sorted: the sequence is the
 // information, so a stage backing up is read by where it sits in the chain.
 //
-// Each stage carries the same three figures, and the last column doubles up: a
-// queue wait for the queued stages, and the p95 for the front door, which is
-// synchronous HTTP with no queue to wait in. Only a wait is ever graded.
+// Every stage carries the same three figures -- rate, run, wait -- which is what
+// lets them be padded into columns further down.
 function normalizeStages(stages) {
   var out = []
   for (var i = 0; i < (stages || []).length; i++) {
     var stage = stages[i] || {}
     var wait = Number(stage.wait)
     var run = Number(stage.run)
-    var extra = Number(stage.extra)
     var hasWait = stage.wait !== null && stage.wait !== undefined && isFinite(wait)
-    var hasExtra = stage.extra !== null && stage.extra !== undefined && isFinite(extra)
 
     out.push({
       key: String(stage.key || ""),
@@ -114,18 +120,61 @@ function normalizeStages(stages) {
       grade: String(stage.grade || "info"),
       rateText: formatRate(stage.rate),
       runText: isFinite(run) ? formatMs(run) + " run" : "",
-      // The front door's p95, where it has one. Always dim: a percentile has no
-      // threshold attached to it here.
-      extraText: hasExtra ? formatMs(extra) + " " + String(stage.extraLabel || "p95") : "",
       waitText: hasWait ? formatMs(wait) + " wait" : "",
-      // Both kinds of stage report a wait, but only a message queue's wait has
-      // an alert threshold behind it. Request queue time (the web stages) is
-      // measured in single milliseconds and would be judged against the wrong
-      // number entirely, so it is shown plain -- see the README.
+      // Both kinds of stage report a wait, but they are graded on different
+      // scales -- the message queues against the alert policy's 1000ms, the web
+      // stages against WEB_QUEUE_* -- which the helper has already applied. This
+      // only records whether there is a verdict to paint.
       graded: hasWait && stage.waitGraded === true
     })
   }
   return out
+}
+
+// ---- Column alignment. Every figure in these sections is scanned down a
+//      column rather than read across a row, so each column is padded to a
+//      common width and the digits line up.
+//
+//      Done here rather than with fixed widths in the QML because this is where
+//      the strings are made, it is testable, and it adapts to whatever the
+//      numbers happen to be: "1,069/min" and "<1/min" get the same column
+//      without anyone picking a pixel width. It does assume the panel's font is
+//      monospace, which is what Omarchy ships (JetBrainsMono Nerd Font) and what
+//      the shell's own section headers already assume.
+
+function padLeft(text, width) {
+  var out = String(text === undefined || text === null ? "" : text)
+  // No String.padStart: Qt's JS engine is older than the QML this has to run in.
+  while (out.length < width) out = " " + out
+  return out
+}
+
+// Pads the named fields to a common width across every row in every group, so
+// separate sections (the pipeline and the web traffic row below it) still line
+// up with each other.
+function alignColumns(groups, keys) {
+  var widths = {}
+  var g, r, k, key
+
+  for (k = 0; k < keys.length; k++) widths[keys[k]] = 0
+  for (g = 0; g < groups.length; g++) {
+    for (r = 0; r < (groups[g] || []).length; r++) {
+      for (k = 0; k < keys.length; k++) {
+        key = keys[k]
+        var length = String(groups[g][r][key] || "").length
+        if (length > widths[key]) widths[key] = length
+      }
+    }
+  }
+  for (g = 0; g < groups.length; g++) {
+    for (r = 0; r < (groups[g] || []).length; r++) {
+      for (k = 0; k < keys.length; k++) {
+        key = keys[k]
+        groups[g][r][key] = padLeft(groups[g][r][key], widths[key])
+      }
+    }
+  }
+  return groups
 }
 
 // External-call latencies, in the order the helper sent them (slowest first).
@@ -312,6 +361,8 @@ if (typeof module !== "undefined") {
     formatCount: formatCount,
     normalizeExternals: normalizeExternals,
     normalizeStages: normalizeStages,
+    alignColumns: alignColumns,
+    padLeft: padLeft,
     barLabel: barLabel,
     findRow: findRow,
     summaryLine: summaryLine,

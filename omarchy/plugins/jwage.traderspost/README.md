@@ -12,14 +12,14 @@ click:
 │   TradersPost production                               │
 │                                                        │
 │ TRADING EXECUTION · LAST 5 MIN                         │
-│ Receive Webhook   228/min  11ms run  14ms p95   2ms wait ●│
-│ Outbox            225/min   7ms run             4ms wait ●│
-│ Handle Webhook    228/min  25ms run             5ms wait ●│
-│ Live Trades        53/min 327ms run             4ms wait ●│
-│ Paper Trades      157/min 157ms run             4ms wait ●│
+│ Receive Webhook   164/min   11ms run   2ms wait ●      │
+│ Outbox            164/min    7ms run   4ms wait ●      │
+│ Handle Webhook    164/min   19ms run   4ms wait ●      │
+│ Live Trades        29/min  317ms run   4ms wait ●      │
+│ Paper Trades      114/min  157ms run   5ms wait ●      │
 │                                                        │
 │ APPLICATION TRAFFIC · LAST 5 MIN                       │
-│ Web traffic       722/min 145ms run             2ms wait ●│
+│ Web traffic       772/min  168ms run   2ms wait ●      │
 │ Error rate                                   0.00%   ● │
 │ Homepage check                                   0   ● │
 │                                                        │
@@ -59,12 +59,10 @@ backed-up queue. Only the wait is graded, because that is what New Relic pages
 on. Watching the rates agree down the chain (172 / 172 / 172 above) is a free
 sanity check that nothing is being dropped between stages.
 
-Receive Webhook is the exception in two ways. It also reports a p95, because the
-average of something this fast and this frequent hides the tail that actually
-matters. And its wait is a **different kind of wait**: there is no message queue
-in front of an HTTP request, so that figure is New Relic's `queueDuration` —
-time between the request reaching Heroku's router and the app picking it up,
-which is dyno saturation showing itself.
+Receive Webhook's wait is a **different kind of wait**: there is no message
+queue in front of an HTTP request, so that figure is New Relic's
+`queueDuration` — time between the request reaching Heroku's router and the app
+picking it up, which is dyno saturation showing itself.
 
 It is graded and dotted like every other row, but **on its own scale** — see
 `WEB_QUEUE_*` below. Judging request queue time against the 1000ms the alert
@@ -91,6 +89,16 @@ does that work. The call rate sits beside each latency because it changes what
 the latency means: 866ms on an endpoint taking 67 calls a minute is a different
 problem from 866ms on an idle one.
 
+Every figure is padded into a column and right-aligned, because these are
+scanned *down* rather than read across: a ragged column makes you re-find the
+decimal point on every row. The pipeline and the Web traffic row share one set
+of columns even though they are separate sections, so the eye does not have to
+re-anchor between them. The padding is done in `Model.js` (where the strings are
+made, and where it can be tested) rather than with pixel widths in the QML, so
+it adapts to whatever the numbers happen to be — `1,069/min` and `<1/min` land
+in the same column without anyone picking a width. It assumes the panel font is
+monospace, which is what Omarchy ships.
+
 Only that last section grows with the data, so it is the only one that scrolls —
 the panel stays a popup rather than a column reaching down the screen. The count
 in its header ("19 ACTIVE") is what says there is more below the fold.
@@ -100,7 +108,7 @@ in its header ("19 ACTIVE") is what says there is more below the fold.
 | `traderspost-health` | Fetches everything from New Relic NerdGraph in one request; prints JSON (`--json`) or a readable table. Runs standalone. |
 | `HOST_LABELS` (in the helper) | Pretty names for known external hosts, brokers taken from the dashboard's "Broker APIs" page. Unlisted hosts show their hostname — nothing is filtered, so a new dependency appears on its own the first time it is called. |
 | `Model.js` | Parsing, grading roll-up and number formatting. Qt-free so it can be tested under node. |
-| `test-model.js` | `node test-model.js` — 23 checks over Model.js. |
+| `test-model.js` | `node test-model.js` — 26 checks over Model.js. |
 | `BarWidget.qml` | The bar dot. Owns the poll timer, holds the last good payload. |
 | `Panel.qml` | The cockpit popup. Renders what BarWidget already fetched. |
 
@@ -135,6 +143,14 @@ unhealthy used by the widget:
 | Elevated Webhook Queue Wait Time | > 1000ms for 300s | Handle Webhook (the wait) |
 | TradersPost Synthetic Check Failure | > 3 failures | Homepage check |
 
+"Homepage check" is New Relic's **TradersPost Homepage Monitor** — a Synthetics
+ping of `https://traderspost.io` every minute from San Francisco, with TLS
+validation on and a redirect counted as a failure. The row is the number of
+FAILED checks in the window, so on a 1-minute period a healthy 5 minutes reads
+`0` out of about 5 checks, and the alert's "> 3" is most of the window failing.
+It is the one signal here that comes from outside the app looking in: APM can
+look perfectly healthy while the site is unreachable.
+
 Every query window is 5 minutes, matching the 300s those conditions use for
 their critical terms, so a number going red here means what New Relic's own
 evaluation would mean by it. **Change a threshold in New Relic and change
@@ -152,7 +168,8 @@ Three gradings are the widget's own, because New Relic has no equivalent:
 - **Request queue time** (`WEB_QUEUE_WARNING_MS` / `WEB_QUEUE_CRITICAL_MS`, 25ms
   and 100ms). Used by Receive Webhook and Web traffic. Nothing in New Relic
   covers it, so these are set against what this app actually does — about 2ms
-  average and 2.4ms p95 — making amber roughly a 10x rise and red a 50x one.
+  average and 2.4ms 95th percentile — making amber roughly a 10x rise and red a
+  50x one.
   Like the outbox, this means the dot can go amber or red with nothing paging;
   adding a matching condition in New Relic is the way to close that gap.
 - **The Outbox stage.** No condition covers the outbox either, and it is graded

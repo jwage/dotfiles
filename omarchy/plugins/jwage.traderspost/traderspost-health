@@ -114,19 +114,13 @@ def build_query(account_id):
             f"SELECT average(duration) * 1000 AS v FROM Transaction "
             f"WHERE appName = '{app}' AND name = '{TXN_WEBHOOK_RECEIVE}' SINCE 5 minutes ago"
         ),
-        # The front door is synchronous HTTP with no queue in front of it, so it
-        # has no wait to report -- the p95 stands in as its second timing, since
-        # the average of something this fast and this frequent hides the tail.
         # Web transactions have no queueWaitTime -- that attribute is theirs, set
         # on message consumers. New Relic's own queueDuration is the equivalent:
         # time between the request arriving at the router and the app picking it
-        # up, which on Heroku is dyno saturation showing itself.
+        # up, which on Heroku is dyno saturation showing itself. Graded on the
+        # WEB_QUEUE_* scale, never the message-queue one.
         "receiveWait": (
             f"SELECT average(queueDuration) * 1000 AS v FROM Transaction "
-            f"WHERE appName = '{app}' AND name = '{TXN_WEBHOOK_RECEIVE}' SINCE 5 minutes ago"
-        ),
-        "receiveP95": (
-            f"SELECT percentile(duration, 95) * 1000 AS v FROM Transaction "
             f"WHERE appName = '{app}' AND name = '{TXN_WEBHOOK_RECEIVE}' SINCE 5 minutes ago"
         ),
         "outboxRate": (
@@ -417,8 +411,6 @@ def collect():
             "waitGraded": True,
             "waitScale": "web",
             "run": scalar(account, "receiveRun"),
-            "extra": scalar(account, "receiveP95"),
-            "extraLabel": "p95",
         },
         {
             "key": "outbox",
@@ -575,12 +567,9 @@ def format_human(health):
 
         run = number(stage["run"], "ms")
         rate = number(stage["rate"], "/min")
-        extra = ""
-        if stage.get("extra") is not None:
-            extra = f"  {stage.get('extraLabel', 'extra')} {number(stage['extra'], 'ms')}"
         lines.append(
             f"    {marks[stage['grade']]:<5} {stage['label']:<17} "
-            f"{rate:>11}  wait {wait:>7}  run {run:>7}{extra}"
+            f"{rate:>11}  wait {wait:>7}  run {run:>7}"
         )
 
     lines.append("  application traffic")

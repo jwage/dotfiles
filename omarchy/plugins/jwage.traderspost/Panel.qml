@@ -537,17 +537,6 @@ Panel {
         font.pixelSize: Style.font.caption
       }
 
-      // The front door's p95, where there is one. Dim: a percentile
-      // has nothing to be judged against.
-      Text {
-        anchors.verticalCenter: parent.verticalCenter
-        visible: modelData.extraText !== ""
-        text: modelData.extraText
-        color: Qt.darker(root.contentForeground, 1.8)
-        font.family: root.contentFontFamily
-        font.pixelSize: Style.font.caption
-      }
-
       Text {
         id: stageTail
         anchors.verticalCenter: parent.verticalCenter

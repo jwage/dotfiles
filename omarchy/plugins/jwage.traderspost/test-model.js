@@ -65,7 +65,7 @@ const healthy = JSON.stringify({
   status: "ok",
   app: "TradersPost Heroku Production",
   stages: [
-    { key: "receive", label: "Receive Webhook", rate: 184.2, wait: 1.6, waitGraded: true, waitScale: "web", run: 11.4, extra: 13.8, extraLabel: "p95", grade: "ok" },
+    { key: "receive", label: "Receive Webhook", rate: 184.2, wait: 1.6, waitGraded: true, waitScale: "web", run: 11.4, grade: "ok" },
     { key: "outbox", label: "Outbox", rate: 183.1, wait: 4.1, waitGraded: true, run: 7.6, grade: "ok" },
     { key: "handle", label: "Handle Webhook", rate: 185.0, wait: 6.2, waitGraded: true, run: 21.8, grade: "ok" },
     { key: "live", label: "Live Trades", rate: 47.3, wait: 1420.5, waitGraded: true, run: 336.1, grade: "critical" },
@@ -99,9 +99,9 @@ check("web traffic parses into a stage-shaped row, not metric rows", () => {
   assert.strictEqual(health.traffic.length, 1)
   const web = health.traffic[0]
   assert.strictEqual(web.label, "Web traffic")
-  assert.strictEqual(web.rateText, "935/min")
-  assert.strictEqual(web.runText, "198ms run")
-  assert.strictEqual(web.waitText, "2ms wait")
+  assert.strictEqual(web.rateText.trim(), "935/min")
+  assert.strictEqual(web.runText.trim(), "198ms run")
+  assert.strictEqual(web.waitText.trim(), "2ms wait")
   // Coloured and dotted like the pipeline rows, on the web threshold scale.
   assert.strictEqual(web.graded, true)
   assert.strictEqual(web.grade, "ok")
@@ -118,33 +118,73 @@ check("stages keep pipeline order, never sorted by value", () => {
   assert.strictEqual(health.stages[3].grade, "critical")
 })
 
-check("each stage formats its figures, and only a message-queue wait is graded", () => {
+check("each stage formats its figures, and every wait is graded", () => {
   const stages = Model.parseHealth(healthy).stages
   const receive = stages[0], live = stages[3]
-  assert.strictEqual(receive.rateText, "184/min")
-  assert.strictEqual(receive.runText, "11ms run")
-  assert.strictEqual(receive.extraText, "14ms p95")
+  // Padded for the column, so compare on the trimmed text here; alignment has
+  // its own test below.
+  assert.strictEqual(receive.rateText.trim(), "184/min")
+  assert.strictEqual(receive.runText.trim(), "11ms run")
   // The front door's wait is request queue time, graded on its own scale rather
   // than the message queues' -- but coloured and dotted like every other row.
-  assert.strictEqual(receive.waitText, "2ms wait")
+  assert.strictEqual(receive.waitText.trim(), "2ms wait")
   assert.strictEqual(receive.graded, true)
   // A message queue's wait is the thing the alert policy pages on.
-  assert.strictEqual(live.waitText, "1.4s wait")
-  assert.strictEqual(live.extraText, "")
+  assert.strictEqual(live.waitText.trim(), "1.4s wait")
   assert.strictEqual(live.graded, true)
+})
+
+check("stage columns are padded to a common width, across sections", () => {
+  const health = Model.parseHealth(healthy)
+  const rows = health.stages.concat(health.traffic)
+  for (const key of ["rateText", "runText", "waitText"]) {
+    const widths = new Set(rows.map(r => r[key].length))
+    assert.strictEqual(widths.size, 1,
+      `${key} ragged: ${JSON.stringify(rows.map(r => r[key]))}`)
+  }
+  // Live Trades has the narrowest rate in the fixture and is padded up to the
+  // width the rest of the column needs -- including the web traffic row below,
+  // which is in a different section but the same column.
+  assert.strictEqual(health.stages[3].rateText, " 47/min")
+  assert.strictEqual(health.stages[0].rateText, "184/min")
+  assert.strictEqual(health.traffic[0].rateText, "935/min")
+  // Same for the run column: 7.6ms pads up to meet 336.1ms.
+  assert.strictEqual(health.stages[1].runText, "  8ms run")
+  assert.strictEqual(health.stages[3].runText, "336ms run")
+  // Padding is leading only: the numbers stay right-aligned against the unit.
+  assert.ok(rows.every(r => r.waitText === r.waitText.replace(/\s+$/, "")))
+})
+
+check("external columns are padded too, independently of the stages", () => {
+  const externals = Model.parseHealth(healthy).externals
+  for (const key of ["rateText", "text"]) {
+    const widths = new Set(externals.map(r => r[key].length))
+    assert.strictEqual(widths.size, 1, `${key} ragged`)
+  }
+  assert.strictEqual(externals[2].rateText, "1,069/min")
+  assert.strictEqual(externals[3].rateText, "   <1/min")
+})
+
+check("padding is a no-op on an empty or single-row group", () => {
+  assert.deepStrictEqual(Model.alignColumns([[]], ["rateText"]), [[]])
+  const one = [{ rateText: "5/min" }]
+  Model.alignColumns([one], ["rateText"])
+  assert.strictEqual(one[0].rateText, "5/min")
+  assert.strictEqual(Model.padLeft("x", 4), "   x")
+  assert.strictEqual(Model.padLeft("toolong", 3), "toolong")
 })
 
 check("a wait without waitGraded is never graded, whatever its size", () => {
   // Guards the distinction: 5s of request queue time must not be judged against
   // the message-queue threshold, which would paint it critical.
   const stages = Model.normalizeStages([{ key: "w", label: "W", wait: 5000, grade: "info" }])
-  assert.strictEqual(stages[0].waitText, "5.0s wait")
+  assert.strictEqual(stages[0].waitText.trim(), "5.0s wait")
   assert.strictEqual(stages[0].graded, false)
 })
 
 check("a stage missing its numbers degrades instead of printing NaN", () => {
   assert.deepStrictEqual(Model.normalizeStages([{ key: "x", label: "X" }]),
-    [{ key: "x", label: "X", grade: "info", rateText: "idle", runText: "", extraText: "", waitText: "", graded: false }])
+    [{ key: "x", label: "X", grade: "info", rateText: "idle", runText: "", waitText: "", graded: false }])
   assert.deepStrictEqual(Model.normalizeStages(undefined), [])
 })
 
@@ -152,9 +192,10 @@ check("externals keep the helper's slowest-first order and are not metric rows",
   const health = Model.parseHealth(healthy)
   assert.deepStrictEqual(health.externals.map(b => b.label),
     ["Tradier paper", "Stripe", "IBKR", "api.newbroker.example"])
-  assert.deepStrictEqual(health.externals.map(b => b.text), ["787ms", "262ms", "134ms", "0.4ms"])
+  assert.deepStrictEqual(health.externals.map(b => b.text.trim()),
+    ["787ms", "262ms", "134ms", "0.4ms"])
   // Rate is context for the latency beside it, rounded hard.
-  assert.deepStrictEqual(health.externals.map(b => b.rateText),
+  assert.deepStrictEqual(health.externals.map(b => b.rateText.trim()),
     ["47/min", "4/min", "1,069/min", "<1/min"])
   // Non-brokers are listed too: the panel shows all external traffic, so Stripe
   // must not be filtered out the way an earlier broker-only version did.
