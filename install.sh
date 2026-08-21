@@ -2,6 +2,11 @@
 # Symlinks each file in this repo to its real location under $HOME,
 # backing up whatever is already there (once) as <file>.orig.
 #
+# Root-owned system config under /etc is the exception: it is copied, not
+# symlinked, because kmod and udev read those directories before /home is
+# mounted. See the comment on that block below. Re-run this script after
+# editing one of those files.
+#
 # Safe to re-run: if the destination is already the correct symlink, it's
 # left alone. A destination that isn't a symlink gets backed up before being
 # replaced.
@@ -117,11 +122,32 @@ fi
 
 # Root-owned system config (kernel module options, udev rules). Linux only
 # -- macOS has no modprobe.d/udev equivalent. Needs sudo, unlike everything
-# else here, so it's kept separate from link_one. Only symlinks: reload the
-# module/udev rules yourself (rmmod+modprobe, udevadm control --reload-rules,
-# or reboot) for a changed option to actually take effect -- doing that
-# automatically here could yank input out from under whoever's running this
-# script with that exact keyboard/mouse.
+# else here, so it's kept separate from link_one.
+#
+# Copied rather than symlinked, and that part is load-bearing. /home is its
+# own btrfs subvolume mounted at the Local File Systems target, but kmod and
+# udev read their config directories well before that -- systemd-modules-load
+# and systemd-udevd both run while a symlink into $HOME is still dangling.
+# kmod does not fail quietly about it either:
+#
+#   libkmod: ERROR: conf_files_filter_out: Cannot stat directory entry:
+#            /etc/modprobe.d/hid_apple.conf
+#
+# It skips the whole file and the module falls back to kernel defaults. That
+# is how hid_apple ran at fnmode=3 while fnmode=1 sat in this repo looking
+# applied. hid_magicmouse got away with the same bug only because a Bluetooth
+# mouse connects long after /home is mounted; tether one over USB at boot and
+# its options disappear the same way. The udev rules are no safer -- both
+# happened to be live only because udev had re-read its rules since boot. A
+# plain file under /etc is readable from the moment root is mounted, which is
+# earlier than any reader here.
+#
+# The tradeoff is that editing a file in this repo no longer changes the
+# installed copy: re-run this script after editing one. Applying a changed
+# option still needs a module or udev reload (rmmod+modprobe, udevadm control
+# --reload-rules, or a reboot). This script deliberately does not do that for
+# you -- it could yank input out from under whoever is running it with that
+# exact keyboard or mouse.
 if [[ "$OS" != "Darwin" ]]; then
   for entry in \
     "etc/modprobe.d/hid_apple.conf:/etc/modprobe.d/hid_apple.conf" \
@@ -131,10 +157,14 @@ if [[ "$OS" != "Darwin" ]]; then
   do
     src="$REPO_DIR/${entry%%:*}"
     dest="${entry#*:}"
-    if [[ -L "$dest" && "$(sudo realpath "$dest" 2>/dev/null)" == "$(realpath "$src")" ]]; then
+
+    # Checked before the sudo probe so an already-installed machine gets
+    # through this loop without asking for a password at all.
+    if [[ -f "$dest" && ! -L "$dest" ]] && cmp -s "$src" "$dest"; then
       echo "ok      $dest"
       continue
     fi
+
     # sudo can't prompt for a password without a TTY (e.g. run from an
     # agent) -- report and move on instead of letting set -e abort the
     # rest of the script (dconf, git/config, Cursor extensions) over a
@@ -143,12 +173,20 @@ if [[ "$OS" != "Darwin" ]]; then
       echo "skip    $dest (sudo needs a password and no TTY is available; rerun from a terminal)"
       continue
     fi
-    if sudo test -e "$dest" -o -L "$dest"; then
+
+    # A symlink at this path is an older run of this script, so there is
+    # nothing in it worth preserving. Back up only a real file, which is
+    # someone else's config (Omarchy writes hid_apple.conf itself).
+    if sudo test -L "$dest"; then
+      sudo rm "$dest"
+      echo "unlinked $dest (was a symlink into this repo, which loads too late)"
+    elif sudo test -e "$dest"; then
       sudo mv "$dest" "$dest.orig"
       echo "backed up $dest -> $dest.orig"
     fi
-    sudo ln -sf "$src" "$dest"
-    echo "linked  $dest -> $src (reload the module/udev rules or reboot to apply)"
+
+    sudo install -D -m 0644 -o root -g root "$src" "$dest"
+    echo "copied  $dest (reload the module/udev rules or reboot to apply)"
   done
 fi
 

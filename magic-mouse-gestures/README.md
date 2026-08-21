@@ -11,9 +11,12 @@ upstream `master` as of 2026-01-15.
 It lives here rather than being installed from upstream because upstream's
 `install.sh` copies the daemon into `/opt`, needs `sudo` and a real TTY, and
 disconnects the mouse over Bluetooth mid-run — none of which fits how the rest
-of this repo installs. `install.sh` here just symlinks the two files below, so
-editing the daemon and `systemctl --user restart magic-mouse-gestures` is the
-whole edit loop.
+of this repo installs. `install.sh` here just symlinks the two user files
+below, so editing the daemon and `systemctl --user restart
+magic-mouse-gestures` is the whole edit loop. The udev rule is the exception:
+it is copied into `/etc` rather than symlinked, because udev reads its rules
+before `/home` is mounted — see [Install](../README.md#install) — so editing
+that one means re-running `install.sh`.
 
 ## What install.sh puts where
 
@@ -21,7 +24,7 @@ whole edit loop.
 |---|---|
 | `magic_mouse_gestures.py` | `~/.local/bin/magic-mouse-gestures` |
 | `magic-mouse-gestures.service` | `~/.config/systemd/user/magic-mouse-gestures.service` |
-| `../etc/udev/rules.d/70-magic-mouse.rules` | `/etc/udev/rules.d/70-magic-mouse.rules` (sudo) |
+| `../etc/udev/rules.d/70-magic-mouse.rules` | `/etc/udev/rules.d/70-magic-mouse.rules` (sudo; copied, not symlinked) |
 
 Enable it once on a new machine (`install.sh` only symlinks; it deliberately
 does not start units):

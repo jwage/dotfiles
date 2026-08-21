@@ -98,13 +98,39 @@ git clone https://github.com/jwage/dotfiles.git ~/Repositories/dotfiles
 Safe to re-run on either machine. Destinations that aren't already the
 correct symlink are backed up as `<file>.orig` first.
 
-On Linux, `install.sh` will prompt for `sudo` once to symlink
-`etc/modprobe.d/*.conf` into `/etc/modprobe.d/` (everything else it does
-needs no elevated privileges). Symlinking doesn't apply a changed kernel
-module option by itself — reload the module or reboot:
+On Linux, `install.sh` will prompt for `sudo` once to install
+`etc/modprobe.d/*.conf` and `etc/udev/rules.d/*` into `/etc` (everything else
+it does needs no elevated privileges).
+
+Those four files are **copied, not symlinked**, unlike everything else here,
+and it matters. `/home` is its own btrfs subvolume mounted at the Local File
+Systems target, but kmod and udev read their config directories before that,
+so a symlink into `$HOME` is still dangling when they look:
+
+```
+libkmod: ERROR: conf_files_filter_out: Cannot stat directory entry:
+         /etc/modprobe.d/hid_apple.conf
+```
+
+kmod skips the whole file and the module gets kernel defaults — which is how
+`hid_apple` ran at `fnmode=3` while `fnmode=1` sat here looking applied.
+`hid_magicmouse` escaped it only because a Bluetooth mouse connects long
+after `/home` is mounted, and the udev rules only because udev had re-read
+its rules since boot.
+
+Two consequences. Editing one of these files in the repo no longer changes
+the installed copy, so **re-run `install.sh` after editing one**. And
+installing it still doesn't apply a changed kernel module option — reload the
+module or reboot:
 
 ```sh
 sudo rmmod hid_apple && sudo modprobe hid_apple
+```
+
+Check that an option actually took, rather than assuming:
+
+```sh
+cat /sys/module/hid_apple/parameters/fnmode      # want 1, not the kernel's 3
 ```
 
 Cursor settings land in `~/Library/Application Support/Cursor/User` on macOS
@@ -162,7 +188,7 @@ delivering its own pointer motion and clicks. Neither emits the other's
 event type: the gesture daemon sends no scroll events at all, which is why
 momentum has to come from `magicmouse-scroll/`.
 
-`install.sh` only symlinks — it never starts units. Enable them once per
+`install.sh` only installs files — it never starts units. Enable them once per
 machine, after installing `python` and `wtype` from `pacman`:
 
 ```sh
@@ -180,9 +206,10 @@ turns the `uaccess` tag into an ACL, so a `99-` file adds it too late.
 asks for one, so dropping upstream's `0666` rule does **not** by itself
 take world access back off a node that already exists.
 
-Apply a change to it with `udevadm control --reload-rules && udevadm
-trigger --action=add --subsystem-match=hidraw`, which avoids a Bluetooth
-reconnect. On a node created before the swap, fix the leftover mode with
+This rule is copied into `/etc`, not symlinked (see [Install](#install)), so
+re-run `install.sh` after editing it and then apply the change with `udevadm
+control --reload-rules && udevadm trigger --action=add
+--subsystem-match=hidraw`, which avoids a Bluetooth reconnect. On a node created before the swap, fix the leftover mode with
 `setfacl -m u:$USER:rw /dev/hidrawN` — not `chmod`, which zeroes the ACL
 mask and silently nullifies the ACL (`getfacl` then shows `#effective:---`
 while an already-running daemon keeps working off its open fd, so it looks
