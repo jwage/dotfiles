@@ -79,6 +79,8 @@ LINUX_LINKS=(
   "omarchy/themes/traderspost/backgrounds/traderspost.png:$HOME/.config/omarchy/themes/traderspost/backgrounds/traderspost.png"
   "magicmouse-scroll/scroll_observer.py:$HOME/.local/bin/magicmouse-scroll-observer"
   "magicmouse-scroll/magicmouse-scroll.service:$HOME/.config/systemd/user/magicmouse-scroll.service"
+  "magic-mouse-gestures/magic_mouse_gestures.py:$HOME/.local/bin/magic-mouse-gestures"
+  "magic-mouse-gestures/magic-mouse-gestures.service:$HOME/.config/systemd/user/magic-mouse-gestures.service"
   "bluetooth-hid-reconnect/reconnect.sh:$HOME/.local/bin/bluetooth-hid-reconnect"
   "bluetooth-hid-reconnect/bluetooth-hid-reconnect.service:$HOME/.config/systemd/user/bluetooth-hid-reconnect.service"
   "bash/bashrc:$HOME/.bashrc"
@@ -119,7 +121,8 @@ if [[ "$OS" != "Darwin" ]]; then
   for entry in \
     "etc/modprobe.d/hid_apple.conf:/etc/modprobe.d/hid_apple.conf" \
     "etc/modprobe.d/hid_magicmouse.conf:/etc/modprobe.d/hid_magicmouse.conf" \
-    "etc/udev/rules.d/99-uinput.rules:/etc/udev/rules.d/99-uinput.rules"
+    "etc/udev/rules.d/99-uinput.rules:/etc/udev/rules.d/99-uinput.rules" \
+    "etc/udev/rules.d/70-magic-mouse.rules:/etc/udev/rules.d/70-magic-mouse.rules"
   do
     src="$REPO_DIR/${entry%%:*}"
     dest="${entry#*:}"

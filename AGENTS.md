@@ -5,12 +5,15 @@ application. `install.sh` is OS-aware and only symlinks config.
 
 - **PHP on the host** (Composer, phpunit): read [`php/README.md`](php/README.md)
   and run `php/setup.sh`. Do not put `extension=` in shared `php/cli.ini`.
-- **Magic Mouse** is split across two daemons: momentum scrolling from
-  `magicmouse-scroll/` here (one finger), swipe navigation from the external
-  magic-mouse-gestures repo (two fingers). Read the Magic Mouse section in
-  [`README.md`](README.md) before touching either; the finger-count split
-  and `emulate_scroll_wheel=0` are what keep them from fighting. The
-  external installer needs a real terminal for `sudo`.
+- **Magic Mouse** is split across two daemons, both tracked here and both
+  symlinked by `install.sh`: momentum scrolling from `magicmouse-scroll/`
+  (one finger) and swipe navigation from `magic-mouse-gestures/` (two
+  fingers), a vendored fork of the upstream repo of that name. Read the
+  Magic Mouse section in [`README.md`](README.md) and
+  [`magic-mouse-gestures/README.md`](magic-mouse-gestures/README.md) before
+  touching either; the finger-count split and `emulate_scroll_wheel=0` are
+  what keep them from fighting. Do not re-run upstream's installer — it
+  copies into `/opt` and would shadow the fork.
 - **Linux desktop files** are Omarchy/Hyprland only — never add them to the
   shared `install.sh` link list.
 - Do not commit secrets (`~/.config/mcp-secrets.env`, SSH keys, `gh` hosts).

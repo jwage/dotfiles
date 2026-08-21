@@ -1,0 +1,13 @@
+# Magic Mouse 2 (Apple 004C:0269) over Bluetooth. The gesture daemon
+# (magic-mouse-gestures) reads the raw HID node, which carries every touch and
+# button press, so grant the active seat user an ACL instead of upstream's
+# MODE="0666" -- that exposed the stream to any local process.
+#
+# MODE="0600" is stated explicitly rather than left to the default: udev only
+# applies a mode when a rule asks for one, so dropping upstream's 0666 rule did
+# not by itself take world access back off an already-created node.
+#
+# Must be numbered below 73: /usr/lib/udev/rules.d/73-seat-late.rules is what
+# turns the uaccess tag into an ACL (RUN{builtin}+="uaccess"), so a 99- file
+# would add the tag after that rule has already run.
+KERNEL=="hidraw*", KERNELS=="0005:004C:0269.*", MODE="0600", TAG+="uaccess"

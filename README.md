@@ -51,7 +51,9 @@ Linux / Omarchy only:
 | `etc/modprobe.d/hid_apple.conf` | `fnmode=1` so the Apple keyboard's F-row acts as media/brightness keys by default (macOS-style); hold Fn for literal F1-F12 |
 | `etc/modprobe.d/hid_magicmouse.conf` | Keeps native Magic Mouse clicks but disables kernel wheel emulation (`emulate_scroll_wheel=0`) so surface scrolling comes from `magicmouse-scroll`'s virtual touchpad instead of stacking with it |
 | `etc/udev/rules.d/99-uinput.rules` | Lets the scroll observer create its virtual touchpad as the normal user; physical pointer and button events never use it |
+| `etc/udev/rules.d/70-magic-mouse.rules` | Gives the active seat user an ACL on the Magic Mouse's raw HID node so the gesture daemon can read it without root — replaces upstream's world-readable `MODE="0666"` rule |
 | `magicmouse-scroll/` | Non-exclusive, scroll-only Magic Mouse observer — this is what gives the mouse momentum/kinetic scrolling. Pointer motion and buttons go directly to Hyprland; only surface motion is emitted, as a Dell-XPS-shaped virtual touchpad |
+| `magic-mouse-gestures/` | Vendored fork of [brenoperucchi/magic-mouse-gestures](https://github.com/brenoperucchi/magic-mouse-gestures) (MIT) — two-finger horizontal swipes become `Alt+Left`/`Alt+Right`. Forked so it installs by symlink like everything else here instead of upstream's `sudo`-and-`/opt` installer, and so the defaults can be edited in place; see [its README](magic-mouse-gestures/README.md) |
 | `dconf/interface.ini` | GTK/GNOME interface settings (theme, cursor, `text-scaling-factor`) — dconf lives in a private binary database, not a plain file, so this is a `dconf dump`/`dconf load` snapshot rather than a symlink; `install.sh` applies it with `dconf load` |
 
 macOS only:
@@ -130,69 +132,61 @@ cursor --install-extension /tmp/ext.vsix
 
 e.g. publisher/name `whatwedo`/`twig` and `gerane`/`theme-sunburst`.
 
-### Magic Mouse gestures
+### Magic Mouse
 
-**Agents:** Magic Mouse support is **not tracked here** — nothing in this
-repo installs or configures it, and `install.sh` gives a new machine no
-Magic Mouse support at all. It comes from
-[brenoperucchi/magic-mouse-gestures](https://github.com/brenoperucchi/magic-mouse-gestures).
-Read that repo's own README for the current install instructions rather
-than following steps copied in here; it owns them and they change. Set it
-up on a new machine, then apply the two local preferences below.
+**Agents:** both halves of Magic Mouse support are tracked here now and
+`install.sh` symlinks both — a new machine gets them from this repo, with
+no upstream installer involved. `magic-mouse-gestures/` is a **vendored
+fork** of [brenoperucchi/magic-mouse-gestures](https://github.com/brenoperucchi/magic-mouse-gestures)
+(MIT); its own [README](magic-mouse-gestures/README.md) records the fork
+commit, every local change, and how to re-sync with upstream. Read that
+before editing the daemon.
 
-You cannot run its installer yourself. It calls `sudo` internally and
-aborts if started as root, so `pkexec` is no help and a password prompt
-needs a real terminal — hand it to the user to run (`! ./install.sh`).
-Warn them first that it disconnects and reconnects the mouse over
-Bluetooth and does `modprobe -r hid_magicmouse`, so they want the trackpad
-within reach. It also needs `wtype` and a Wayland session.
-
-Two upstream defaults to change afterward:
-
-- `MIN_FINGERS=1` fires browser Back on one-finger horizontal motion, and
-  a finger rests on that surface whenever the mouse moves. Use
-  `systemctl --user edit magic-mouse-gestures` to set
-  `Environment="MIN_FINGERS=2"` for macOS-style two-finger swipes.
-- Its udev rule sets `MODE="0666"` on the mouse's hidraw node, exposing
-  every touch and button to any local process. A per-user ACL is enough.
-  The replacement must sort below `73-seat-late.rules`, which is what turns
-  the tag into an ACL — a `99-` file adds it too late — so put this in
-  `/etc/udev/rules.d/70-magic-mouse.rules` and delete upstream's `99-`
-  rule:
-
-  ```
-  KERNEL=="hidraw*", KERNELS=="0005:004C:0269.*", MODE="0600", TAG+="uaccess"
-  ```
-
-  State `MODE` explicitly: udev only applies a mode when a rule asks for
-  one, so deleting upstream's `0666` rule does **not** by itself take world
-  access back off a node that already exists. Apply with `udevadm control
-  --reload-rules && udevadm trigger --action=add --subsystem-match=hidraw`,
-  which avoids a Bluetooth reconnect.
-
-  On a node created before the swap, fix the leftover mode with `setfacl -m
-  u:$USER:rw /dev/hidrawN` — not `chmod`, which zeroes the ACL mask and
-  silently nullifies the ACL (`getfacl` then shows `#effective:---` while
-  an already-running daemon keeps working off its open fd, so it looks
-  fine until the next restart). Verify with `getfacl`: want `other::---`
-  and no `#effective:---`.
-
-**It maps horizontal swipes to Alt+Left/Right and nothing else** — it emits
-no scroll events. Momentum comes from `magicmouse-scroll/` in this repo
-instead, and the two split the surface by finger count:
+The surface is split by finger count, and the two daemons never overlap:
 
 | Fingers | Owner | Result |
 |---|---|---|
-| 1 | `magicmouse-scroll` | scroll, with kinetic fling |
-| 2 | `magic-mouse-gestures` | `Alt+Left` / `Alt+Right` |
+| 1 | `magicmouse-scroll/` | scroll, with kinetic fling |
+| 2 | `magic-mouse-gestures/` | `Alt+Left` / `Alt+Right` (browser Back/Forward) |
 
-That split is load-bearing in both directions. `MIN_FINGERS=2` keeps the
-gesture daemon off one-finger scrolling, and `MAX_SCROLL_CONTACTS = 1` in
-`scroll_observer.py` keeps the scroll observer off two-finger swipes —
-without both, one two-finger flick would scroll sideways *and* navigate
+That split is load-bearing in both directions. `MIN_FINGERS = 2` in the
+fork keeps the gesture daemon off one-finger scrolling (upstream defaults
+to 1, which fires Back constantly — a finger rests on that surface
+whenever the mouse moves), and `MAX_SCROLL_CONTACTS = 1` in
+`scroll_observer.py` keeps the scroll observer off two-finger swipes.
+Without both, one two-finger flick would scroll sideways *and* navigate
 back. Neither daemon grabs the device (one reads evdev, the other hidraw,
 both non-exclusively), so they coexist and the physical mouse keeps
-delivering its own pointer motion and clicks.
+delivering its own pointer motion and clicks. Neither emits the other's
+event type: the gesture daemon sends no scroll events at all, which is why
+momentum has to come from `magicmouse-scroll/`.
+
+`install.sh` only symlinks — it never starts units. Enable them once per
+machine, after installing `python` and `wtype` from `pacman`:
+
+```sh
+systemctl --user daemon-reload
+systemctl --user enable --now magicmouse-scroll magic-mouse-gestures
+```
+
+`etc/udev/rules.d/70-magic-mouse.rules` is what lets the gesture daemon
+read the mouse's raw HID node as a normal user. It replaces upstream's
+`99-magic-mouse.rules`, which set `MODE="0666"` and exposed every touch
+and button to any local process; a per-user ACL is enough. The number
+matters — the rule must sort below `73-seat-late.rules`, which is what
+turns the `uaccess` tag into an ACL, so a `99-` file adds it too late.
+`MODE` is stated explicitly because udev only applies a mode when a rule
+asks for one, so dropping upstream's `0666` rule does **not** by itself
+take world access back off a node that already exists.
+
+Apply a change to it with `udevadm control --reload-rules && udevadm
+trigger --action=add --subsystem-match=hidraw`, which avoids a Bluetooth
+reconnect. On a node created before the swap, fix the leftover mode with
+`setfacl -m u:$USER:rw /dev/hidrawN` — not `chmod`, which zeroes the ACL
+mask and silently nullifies the ACL (`getfacl` then shows `#effective:---`
+while an already-running daemon keeps working off its open fd, so it looks
+fine until the next restart). Verify with `getfacl`: want `other::---` and
+no `#effective:---`.
 
 Why a virtual touchpad rather than synthesized fling: `hid-magicmouse`
 digests the surface into plain wheel ticks (`REL_WHEEL`), and GTK/Chromium/
@@ -204,11 +198,11 @@ earlier revision hand-rolled a decay curve instead; that is what `be2c504`
 replaced, and the toolkit path feels closer to macOS.
 
 This is also why `etc/modprobe.d/hid_magicmouse.conf` sets
-`emulate_scroll_wheel=0` and why that file, not the gesture repo's
-`hid-magicmouse.conf`, owns the module options — two `options` lines for
-one module leave the winner decided by which filename sorts last in
-`/etc/modprobe.d` (`-` before `_`). If both exist, delete the gesture
-repo's copy. The parameter is runtime-writable, so it can be flipped
+`emulate_scroll_wheel=0` and why that file owns the module options.
+Upstream ships its own `modprobe/hid-magicmouse.conf`, deliberately not
+vendored into the fork: two `options` lines for one module leave the
+winner decided by which filename sorts last in `/etc/modprobe.d` (`-`
+before `_`). If a machine somehow has both, delete the upstream copy. The parameter is runtime-writable, so it can be flipped
 without `rmmod`/`modprobe` or a Bluetooth reconnect:
 
 ```sh
