@@ -144,3 +144,28 @@ o.bind("SUPER + RETURN", "Send message (Cmd+Return, like macOS Slack)", function
     hl.dispatch(hl.dsp.exec_cmd("omarchy-launch-terminal"))
   end
 end)
+
+local function active_window_is_chrome()
+  local window = hl.get_active_window()
+  return window ~= nil and window.class == "google-chrome"
+end
+
+-- New incognito window, matching Cmd+Shift+N on macOS Chrome. Chrome on Linux
+-- puts this on Ctrl+Shift+N, so forward that -- which also means an existing
+-- incognito session gets a new window rather than a second isolated one, the
+-- same as pressing it on a Mac.
+--
+-- SUPER+SHIFT+N was "Editor" (omarchy-launch-editor). That binding is not
+-- redundant, so rather than dropping it, fall back to it whenever Chrome is not
+-- the focused window -- the same shape as SUPER+RETURN above, which forwards to
+-- Slack when Slack is focused and otherwise still launches the terminal. Chrome
+-- is the only place Cmd+Shift+N means anything, so the editor keeps the key
+-- everywhere else.
+hl.unbind("SUPER + SHIFT + N")
+o.bind("SUPER + SHIFT + N", "New incognito window in Chrome (Cmd+Shift+N), else Editor", function()
+  if active_window_is_chrome() then
+    send_ctrl_shortcut_once("N", "CTRL SHIFT")()
+  else
+    hl.dispatch(hl.dsp.exec_cmd("omarchy-launch-editor"))
+  end
+end)
