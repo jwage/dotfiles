@@ -12,17 +12,18 @@ click:
 │   TradersPost production                               │
 │                                                        │
 │ TRADING EXECUTION · LAST 5 MIN                         │
-│ Receive Webhook          172/min  11ms run   14ms p95  │
-│ Outbox                   172/min   6ms run  4ms wait ● │
-│ Handle Webhook           172/min  21ms run  4ms wait ● │
-│ Live Trades               43/min 373ms run  5ms wait ● │
-│ Paper Trades             127/min 172ms run  4ms wait ● │
+│ Receive Webhook   255/min  11ms run  14ms p95   2ms wait│
+│ Outbox            255/min   7ms run             4ms wait ●│
+│ Handle Webhook    253/min  25ms run             5ms wait ●│
+│ Live Trades        57/min 396ms run             4ms wait ●│
+│ Paper Trades      181/min 177ms run             5ms wait ●│
 │                                                        │
 │ APPLICATION TRAFFIC · LAST 5 MIN                       │
 │ Error rate                                   0.00%   ● │
 │ Homepage check                                   0   ● │
-│ Web throughput                             639/min     │
-│ Web response                                 169ms     │
+│ Web throughput                             766/min     │
+│ Web queue                                      2ms     │
+│ Web response                                 207ms     │
 │                                                        │
 │ EXTERNAL SERVICES · 19 ACTIVE            (scrolls)     │
 │ E*TRADE                          69/min      276ms     │
@@ -60,11 +61,21 @@ backed-up queue. Only the wait is graded, because that is what New Relic pages
 on. Watching the rates agree down the chain (172 / 172 / 172 above) is a free
 sanity check that nothing is being dropped between stages.
 
-Receive Webhook is the exception: it is synchronous HTTP with no queue in front
-of it, so it has no wait to report and its p95 stands in as the second timing —
-the average of something this fast and this frequent hides the tail that
-actually matters. It carries no dot, because there is nothing to judge it
-against.
+Receive Webhook is the exception in two ways. It also reports a p95, because the
+average of something this fast and this frequent hides the tail that actually
+matters. And its wait is a **different kind of wait**: there is no message queue
+in front of an HTTP request, so that figure is New Relic's `queueDuration` —
+time between the request reaching Heroku's router and the app picking it up,
+which is dyno saturation showing itself. Same for "Web queue" in the section
+below.
+
+Those two are shown but never graded or dotted, and that is deliberate: request
+queue time lives in single milliseconds, so judging it against the 1000ms the
+alert policy uses for a *message* queue would call a genuine emergency healthy.
+There is no condition in New Relic covering it, and rather than invent a second
+threshold the numbers are shown plain. If you want them graded, that is a real
+decision to make — pick numbers, and add the condition in New Relic too so the
+dot keeps agreeing with the pager.
 
 **2. Application traffic** is what is true *around* the pipeline: error rate,
 the synthetic homepage check, and web throughput and response for everything
@@ -89,7 +100,7 @@ in its header ("19 ACTIVE") is what says there is more below the fold.
 | `traderspost-health` | Fetches everything from New Relic NerdGraph in one request; prints JSON (`--json`) or a readable table. Runs standalone. |
 | `HOST_LABELS` (in the helper) | Pretty names for known external hosts, brokers taken from the dashboard's "Broker APIs" page. Unlisted hosts show their hostname — nothing is filtered, so a new dependency appears on its own the first time it is called. |
 | `Model.js` | Parsing, grading roll-up and number formatting. Qt-free so it can be tested under node. |
-| `test-model.js` | `node test-model.js` — 21 checks over Model.js. |
+| `test-model.js` | `node test-model.js` — 22 checks over Model.js. |
 | `BarWidget.qml` | The bar dot. Owns the poll timer, holds the last good payload. |
 | `Panel.qml` | The cockpit popup. Renders what BarWidget already fetched. |
 

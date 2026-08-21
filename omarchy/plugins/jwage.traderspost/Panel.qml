@@ -49,17 +49,11 @@ Panel {
   }
 
   // Application traffic: what is true around the pipeline rather than in it.
-  readonly property var contextKeys: ["errorRate", "synthetic", "webThroughput", "webDuration"]
-
-  function rowsFor(keys) {
-    var out = []
-    var rows = (health && health.rows) || []
-    for (var i = 0; i < rows.length; i++)
-      if (keys.indexOf(rows[i].key) !== -1) out.push(rows[i])
-    return out
-  }
-
-  readonly property var contextRows: rowsFor(contextKeys)
+  // Every metric row the helper sends, in Model.METRIC_ORDER -- not a second
+  // hand-kept list of keys. There was one, and adding "Web queue" to the helper
+  // and to METRIC_ORDER still left it invisible because this list had not been
+  // updated too. One list, one place to change.
+  readonly property var contextRows: (health && health.rows) || []
   // Never re-sorted: the sequence is the information.
   readonly property var stages: (health && health.stages) || []
   readonly property var externals: (health && health.externals) || []
@@ -123,7 +117,7 @@ Panel {
     // lives on the right, so centerOnBar would drop the cockpit in the middle
     // of the screen, disconnected from the dot that opened it.
     focusTarget: keyCatcher
-    contentWidth: panel.fittedContentWidth(Style.space(430))
+    contentWidth: panel.fittedContentWidth(Style.space(470))
     contentHeight: panel.fittedContentHeight(content.implicitHeight)
 
     PanelKeyCatcher {
@@ -339,10 +333,21 @@ Panel {
                   font.pixelSize: Style.font.caption
                 }
 
+                // The front door's p95, where there is one. Dim: a percentile
+                // has nothing to be judged against.
+                Text {
+                  anchors.verticalCenter: parent.verticalCenter
+                  visible: modelData.extraText !== ""
+                  text: modelData.extraText
+                  color: Qt.darker(root.contentForeground, 1.8)
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption
+                }
+
                 Text {
                   id: stageTail
                   anchors.verticalCenter: parent.verticalCenter
-                  text: modelData.tailText
+                  text: modelData.waitText
                   color: root.stale
                     ? Color.muted
                     : (modelData.graded ? root.statusColor(modelData.grade) : Qt.darker(root.contentForeground, 1.55))
@@ -351,8 +356,8 @@ Panel {
                   font.bold: modelData.grade === "warning" || modelData.grade === "critical"
                 }
 
-                // Only a queue wait carries a verdict; the front door's p95 has
-                // no threshold to be judged against.
+                // Only a message queue's wait carries a verdict. The web stages
+                // report request queue time, which has no threshold here.
                 Text {
                   anchors.verticalCenter: parent.verticalCenter
                   visible: modelData.graded

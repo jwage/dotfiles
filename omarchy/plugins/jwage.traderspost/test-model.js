@@ -65,11 +65,11 @@ const healthy = JSON.stringify({
   status: "ok",
   app: "TradersPost Heroku Production",
   stages: [
-    { key: "receive", label: "Receive Webhook", rate: 184.2, wait: null, run: 11.4, extra: 13.8, extraLabel: "p95", grade: "info" },
-    { key: "outbox", label: "Outbox", rate: 183.1, wait: 4.1, run: 7.6, grade: "ok" },
-    { key: "handle", label: "Handle Webhook", rate: 185.0, wait: 6.2, run: 21.8, grade: "ok" },
-    { key: "live", label: "Live Trades", rate: 47.3, wait: 1420.5, run: 336.1, grade: "critical" },
-    { key: "paper", label: "Paper Trades", rate: 141.2, wait: 6.0, run: 160.4, grade: "ok" }
+    { key: "receive", label: "Receive Webhook", rate: 184.2, wait: 1.6, waitGraded: false, run: 11.4, extra: 13.8, extraLabel: "p95", grade: "info" },
+    { key: "outbox", label: "Outbox", rate: 183.1, wait: 4.1, waitGraded: true, run: 7.6, grade: "ok" },
+    { key: "handle", label: "Handle Webhook", rate: 185.0, wait: 6.2, waitGraded: true, run: 21.8, grade: "ok" },
+    { key: "live", label: "Live Trades", rate: 47.3, wait: 1420.5, waitGraded: true, run: 336.1, grade: "critical" },
+    { key: "paper", label: "Paper Trades", rate: 141.2, wait: 6.0, waitGraded: true, run: 160.4, grade: "ok" }
   ],
   metrics: {
     errorRate: { value: 0, unit: "%", grade: "ok", label: "Error rate" },
@@ -90,7 +90,7 @@ check("a healthy payload parses into ordered rows", () => {
   assert.strictEqual(health.ok, true)
   assert.strictEqual(health.status, "ok")
   assert.deepStrictEqual(health.rows.map(r => r.key),
-    ["errorRate", "webThroughput", "webDuration"])
+    ["errorRate", "webThroughput", "webDuration"])  // webQueue absent from this fixture
   assert.strictEqual(Model.findRow(health, "errorRate").text, "0.00%")
 })
 
@@ -103,22 +103,33 @@ check("stages keep pipeline order, never sorted by value", () => {
   assert.strictEqual(health.stages[3].grade, "critical")
 })
 
-check("each stage formats its three figures, and only a wait is graded", () => {
+check("each stage formats its figures, and only a message-queue wait is graded", () => {
   const stages = Model.parseHealth(healthy).stages
   const receive = stages[0], live = stages[3]
   assert.strictEqual(receive.rateText, "184/min")
   assert.strictEqual(receive.runText, "11ms run")
-  // The front door has no queue, so its trailing figure is the p95 and it
-  // carries no verdict.
-  assert.strictEqual(receive.tailText, "14ms p95")
+  assert.strictEqual(receive.extraText, "14ms p95")
+  // The front door reports request queue time, which has no threshold behind it
+  // -- shown, but never coloured or dotted.
+  assert.strictEqual(receive.waitText, "2ms wait")
   assert.strictEqual(receive.graded, false)
-  assert.strictEqual(live.tailText, "1.4s wait")
+  // A message queue's wait is the thing the alert policy pages on.
+  assert.strictEqual(live.waitText, "1.4s wait")
+  assert.strictEqual(live.extraText, "")
   assert.strictEqual(live.graded, true)
+})
+
+check("a wait without waitGraded is never graded, whatever its size", () => {
+  // Guards the distinction: 5s of request queue time must not be judged against
+  // the message-queue threshold, which would paint it critical.
+  const stages = Model.normalizeStages([{ key: "w", label: "W", wait: 5000, grade: "info" }])
+  assert.strictEqual(stages[0].waitText, "5.0s wait")
+  assert.strictEqual(stages[0].graded, false)
 })
 
 check("a stage missing its numbers degrades instead of printing NaN", () => {
   assert.deepStrictEqual(Model.normalizeStages([{ key: "x", label: "X" }]),
-    [{ key: "x", label: "X", grade: "info", rateText: "idle", runText: "", tailText: "", graded: false }])
+    [{ key: "x", label: "X", grade: "info", rateText: "idle", runText: "", extraText: "", waitText: "", graded: false }])
   assert.deepStrictEqual(Model.normalizeStages(undefined), [])
 })
 

@@ -109,6 +109,14 @@ def build_query(account_id):
         # The front door is synchronous HTTP with no queue in front of it, so it
         # has no wait to report -- the p95 stands in as its second timing, since
         # the average of something this fast and this frequent hides the tail.
+        # Web transactions have no queueWaitTime -- that attribute is theirs, set
+        # on message consumers. New Relic's own queueDuration is the equivalent:
+        # time between the request arriving at the router and the app picking it
+        # up, which on Heroku is dyno saturation showing itself.
+        "receiveWait": (
+            f"SELECT average(queueDuration) * 1000 AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND name = '{TXN_WEBHOOK_RECEIVE}' SINCE 5 minutes ago"
+        ),
         "receiveP95": (
             f"SELECT percentile(duration, 95) * 1000 AS v FROM Transaction "
             f"WHERE appName = '{app}' AND name = '{TXN_WEBHOOK_RECEIVE}' SINCE 5 minutes ago"
@@ -173,6 +181,11 @@ def build_query(account_id):
         ),
         "webDuration": (
             f"SELECT average(duration) * 1000 AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND transactionType = 'Web' "
+            f"AND name != '{TXN_WEBHOOK_RECEIVE}' SINCE 5 minutes ago"
+        ),
+        "webQueue": (
+            f"SELECT average(queueDuration) * 1000 AS v FROM Transaction "
             f"WHERE appName = '{app}' AND transactionType = 'Web' "
             f"AND name != '{TXN_WEBHOOK_RECEIVE}' SINCE 5 minutes ago"
         ),
@@ -378,13 +391,20 @@ def collect():
             "key": "receive",
             "label": "Receive Webhook",
             "rate": scalar(account, "receiveRate"),
-            "wait": None,
+            "wait": scalar(account, "receiveWait"),
+            # Ungraded, unlike the message queues below. This is request queue
+            # time, and the 1000ms the alert policy uses for a message queue
+            # would be a catastrophe here -- web queueing is measured in single
+            # milliseconds. There is no condition in New Relic covering it, so
+            # rather than invent a second threshold the number is shown plain.
+            "waitGraded": False,
             "run": scalar(account, "receiveRun"),
             "extra": scalar(account, "receiveP95"),
             "extraLabel": "p95",
         },
         {
             "key": "outbox",
+            "waitGraded": True,
             "label": "Outbox",
             "rate": scalar(account, "outboxRate"),
             "wait": scalar(account, "outboxWait"),
@@ -392,6 +412,7 @@ def collect():
         },
         {
             "key": "handle",
+            "waitGraded": True,
             "label": "Handle Webhook",
             "rate": scalar(account, "handleRate"),
             "wait": scalar(account, "handleWait"),
@@ -399,6 +420,7 @@ def collect():
         },
         {
             "key": "live",
+            "waitGraded": True,
             "label": "Live Trades",
             "rate": scalar(account, "liveRate"),
             "wait": scalar(account, "liveWait"),
@@ -406,6 +428,7 @@ def collect():
         },
         {
             "key": "paper",
+            "waitGraded": True,
             "label": "Paper Trades",
             "rate": scalar(account, "paperRate"),
             "wait": scalar(account, "paperWait"),
@@ -423,7 +446,8 @@ def collect():
     # the dot can go red with nothing paging. Drop this stage's grade to "info"
     # if the dot should mirror the pager and nothing else.
     for stage in stages:
-        stage["grade"] = "info" if stage["wait"] is None else grade_queue(stage["wait"])
+        gradeable = stage.get("waitGraded") and stage["wait"] is not None
+        stage["grade"] = grade_queue(stage["wait"]) if gradeable else "info"
 
     error_rate = scalar(account, "errorRate")
     synthetic_failures = scalar(account, "syntheticFailures") or 0.0
@@ -442,6 +466,10 @@ def collect():
         },
         "webThroughput": {"value": scalar(account, "webThroughput"), "unit": "/min",
                           "grade": "info", "label": "Web throughput"},
+        # Same request queue time as the receive stage, for everything else on
+        # HTTP. Ungraded for the same reason.
+        "webQueue": {"value": scalar(account, "webQueue"), "unit": "ms",
+                     "grade": "info", "label": "Web queue"},
         "webDuration": {"value": scalar(account, "webDuration"), "unit": "ms",
                         "grade": "info", "label": "Web response"},
     }
@@ -505,6 +533,8 @@ def format_human(health):
     lines = [f"{health['app']}: {health['status'].upper()}", "  trading execution"]
     for stage in health["stages"]:
         wait = number(stage["wait"], "ms")
+        if stage["wait"] is not None and not stage.get("waitGraded"):
+            wait += "*"
         run = number(stage["run"], "ms")
         rate = number(stage["rate"], "/min")
         extra = ""
@@ -515,6 +545,7 @@ def format_human(health):
             f"{rate:>11}  wait {wait:>7}  run {run:>7}{extra}"
         )
 
+    lines.append("  (* request queue time -- not graded, see README)")
     lines.append("  application traffic")
     for metric in health["metrics"].values():
         detail = f" ({metric['detail']})" if metric.get("detail") else ""

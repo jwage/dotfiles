@@ -19,6 +19,7 @@ var METRIC_ORDER = [
   "errorRate",
   "synthetic",
   "webThroughput",
+  "webQueue",
   "webDuration"
 ]
 
@@ -112,10 +113,15 @@ function normalizeStages(stages) {
       grade: String(stage.grade || "info"),
       rateText: formatRate(stage.rate),
       runText: isFinite(run) ? formatMs(run) + " run" : "",
-      // One trailing figure, whichever the stage has: the graded queue wait, or
-      // the p95 where there is no queue.
-      tailText: hasWait ? formatMs(wait) + " wait" : (hasExtra ? formatMs(extra) + " " + String(stage.extraLabel || "p95") : ""),
-      graded: hasWait
+      // The front door's p95, where it has one. Always dim: a percentile has no
+      // threshold attached to it here.
+      extraText: hasExtra ? formatMs(extra) + " " + String(stage.extraLabel || "p95") : "",
+      waitText: hasWait ? formatMs(wait) + " wait" : "",
+      // Both kinds of stage report a wait, but only a message queue's wait has
+      // an alert threshold behind it. Request queue time (the web stages) is
+      // measured in single milliseconds and would be judged against the wrong
+      // number entirely, so it is shown plain -- see the README.
+      graded: hasWait && stage.waitGraded === true
     })
   }
   return out
@@ -250,7 +256,7 @@ function summaryLine(health) {
     if (!stage.graded) continue
     if (worst === null || rank(stage.grade) < rank(worst.grade)) worst = stage
   }
-  if (worst) parts.push(worst.label + " " + worst.tailText)
+  if (worst) parts.push(worst.label + " " + worst.waitText)
   return parts.join(" · ")
 }
 
