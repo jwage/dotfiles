@@ -29,7 +29,6 @@ BarWidget {
   property string lastError: ""
 
   readonly property int pollInterval: Model.pollIntervalMs(setting("pollSeconds", 60))
-  readonly property bool showLatency: setting("showLatency", true) === true && !vertical
 
   readonly property double dataAge: lastSuccess > 0 ? now - lastSuccess : Number.POSITIVE_INFINITY
   readonly property bool stale: lastSuccess <= 0 || Model.isStale(dataAge, pollInterval)
@@ -53,7 +52,7 @@ BarWidget {
   }
 
   readonly property color statusForeground: statusColor(effectiveStatus)
-  readonly property string label: Model.barLabel(health, showLatency)
+  readonly property string label: Model.barLabel(health)
   readonly property string tooltip: {
     if (root.stale && root.lastSuccess > 0) return Model.summaryLine(health) + " · stale, " + ageText
     if (!health.ok) return "TradersPost: " + (health.error || "unavailable")
@@ -203,8 +202,8 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: root.vertical ? "" : root.label
-    labelVisible: !root.vertical
+    text: ""
+    labelVisible: false
     hasVisualContent: true
     // The panel is the detail view, so the tooltip stays a one-liner rather
     // than repeating it.
@@ -221,10 +220,7 @@ BarWidget {
       else root.togglePanel()
     }
 
-    // Vertical bars have icon-sized slots and no room for a number, so the
-    // dot stands alone.
     OpticalGlyph {
-      visible: root.vertical
       anchors.fill: parent
       text: "●"
       fontFamily: button.fontFamily

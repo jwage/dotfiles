@@ -68,8 +68,16 @@ const healthy = JSON.stringify({
     liveQueueWait: { value: 3.93, unit: "ms", grade: "ok", label: "Live queue wait" },
     errorRate: { value: 0, unit: "%", grade: "ok", label: "Error rate" },
     webDuration: { value: 107.8, unit: "ms", grade: "info", label: "Web response" },
-    slowestBroker: { value: 410, unit: "ms", grade: "info", label: "Slowest API", detail: "api.stripe.com" }
+    webThroughput: { value: 1164.2, unit: "/min", grade: "info", label: "Web throughput" },
+    webhookReceiveRate: { value: 284.3, unit: "/min", grade: "info", label: "Received" },
+    webhookReceiveP95: { value: 13.8, unit: "ms", grade: "info", label: "Receive p95" }
   },
+  externals: [
+    { host: "sandbox.tradier.com", label: "Tradier paper", ms: 787.4, rpm: 47.2 },
+    { host: "api.stripe.com", label: "Stripe", ms: 262.0, rpm: 4.1 },
+    { host: "api.ibkr.com", label: "IBKR", ms: 134.1, rpm: 1069.3 },
+    { host: "api.newbroker.example", label: "api.newbroker.example", ms: 0.4, rpm: 0.2 }
+  ],
   issues: []
 })
 
@@ -78,20 +86,64 @@ check("a healthy payload parses into ordered rows", () => {
   assert.strictEqual(health.ok, true)
   assert.strictEqual(health.status, "ok")
   assert.deepStrictEqual(health.rows.map(r => r.key),
-    ["liveQueueWait", "errorRate", "webDuration", "slowestBroker"])
+    ["liveQueueWait", "errorRate", "webhookReceiveRate", "webhookReceiveP95", "webThroughput", "webDuration"])
   assert.strictEqual(Model.findRow(health, "liveQueueWait").text, "4ms")
-  assert.strictEqual(Model.findRow(health, "slowestBroker").detail, "api.stripe.com")
+  // Webhook receive is ordered ahead of general web traffic, not mixed into it.
+  const keys = health.rows.map(r => r.key)
+  assert.ok(keys.indexOf("webhookReceiveRate") < keys.indexOf("webThroughput"))
+})
+
+check("externals keep the helper's slowest-first order and are not metric rows", () => {
+  const health = Model.parseHealth(healthy)
+  assert.deepStrictEqual(health.externals.map(b => b.label),
+    ["Tradier paper", "Stripe", "IBKR", "api.newbroker.example"])
+  assert.deepStrictEqual(health.externals.map(b => b.text), ["787ms", "262ms", "134ms", "0.4ms"])
+  // Rate is context for the latency beside it, rounded hard.
+  assert.deepStrictEqual(health.externals.map(b => b.rateText),
+    ["47/min", "4/min", "1,069/min", "<1/min"])
+  // Non-brokers are listed too: the panel shows all external traffic, so Stripe
+  // must not be filtered out the way an earlier broker-only version did.
+  assert.ok(health.externals.some(b => b.host === "api.stripe.com"))
+  // None of them leak into the graded metric rows.
+  assert.strictEqual(health.rows.some(r => r.key === "externals"), false)
+})
+
+check("an unrecognised host still lists, under its hostname", () => {
+  // traderspost-health filters nothing, so a newly called dependency appears on
+  // its own; the model must not drop it for lacking a pretty label.
+  const health = Model.parseHealth(healthy)
+  const fresh = health.externals[health.externals.length - 1]
+  assert.strictEqual(fresh.label, "api.newbroker.example")
+  assert.strictEqual(fresh.host, "api.newbroker.example")
+})
+
+check("call rates degrade sanely", () => {
+  assert.strictEqual(Model.formatRate(0), "idle")
+  assert.strictEqual(Model.formatRate(null), "idle")
+  assert.strictEqual(Model.formatRate(-3), "idle")
+  assert.strictEqual(Model.formatRate(0.4), "<1/min")
+  assert.strictEqual(Model.formatRate(1069.3), "1,069/min")
+  assert.strictEqual(Model.formatRate(25000), "25.0k/min")
+})
+
+check("a payload with no externals at all is an empty list, not a crash", () => {
+  const health = Model.parseHealth(JSON.stringify({ ok: true, status: "ok", metrics: {}, issues: [] }))
+  assert.deepStrictEqual(health.externals, [])
+  assert.deepStrictEqual(Model.normalizeExternals(undefined), [])
+  // A malformed entry becomes a dash rather than dropping the row.
+  assert.deepStrictEqual(Model.normalizeExternals([{}]),
+    [{ host: "", label: "unknown", text: "—", rateText: "idle" }])
 })
 
 check("rows follow METRIC_ORDER, not the order the JSON happened to use", () => {
   const scrambled = JSON.stringify({
     ok: true, status: "ok", metrics: {
-      slowestBroker: { value: 1, unit: "ms", grade: "info", label: "Slowest API" },
+      tradesProcessed: { value: 1, unit: "", grade: "info", label: "Trades (5m)" },
       liveQueueWait: { value: 1, unit: "ms", grade: "ok", label: "Live queue wait" }
     }, issues: []
   })
   assert.deepStrictEqual(Model.parseHealth(scrambled).rows.map(r => r.key),
-    ["liveQueueWait", "slowestBroker"])
+    ["liveQueueWait", "tradesProcessed"])
 })
 
 check("failures degrade to a no-data state with a reason, never a throw", () => {
@@ -106,6 +158,7 @@ check("failures degrade to a no-data state with a reason, never a throw", () => 
     assert.strictEqual(health.ok, false, `expected failure for ${JSON.stringify(input)}`)
     assert.strictEqual(health.status, "unknown")
     assert.deepStrictEqual(health.rows, [])
+    assert.deepStrictEqual(health.externals, [])
     assert.match(health.error, expectation)
   }
 })
@@ -123,12 +176,12 @@ check("open issues are normalised even when fields are missing", () => {
 
 // ---- Labels
 
-check("the bar label carries the dot, plus latency when there is room", () => {
-  const health = Model.parseHealth(healthy)
-  assert.strictEqual(Model.barLabel(health, false), "●")
-  assert.strictEqual(Model.barLabel(health, true), "● 108ms")
-  // A failed poll keeps the dot -- the widget must not vanish off the bar.
-  assert.strictEqual(Model.barLabel(Model.parseHealth("broken"), true), "●")
+check("the bar label is the dot and nothing else, in every state", () => {
+  // No response time beside it: colour is the whole message at bar scale. And a
+  // failed poll still keeps the dot -- the widget must not vanish off the bar.
+  assert.strictEqual(Model.barLabel(Model.parseHealth(healthy)), "●")
+  assert.strictEqual(Model.barLabel(Model.parseHealth("broken")), "●")
+  assert.strictEqual(Model.barLabel(null), "●")
 })
 
 check("the summary line leads with the verdict", () => {

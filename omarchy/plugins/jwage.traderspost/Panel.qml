@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import Quickshell
 import qs.Commons
 import qs.Ui
@@ -49,7 +50,12 @@ Panel {
 
   // The signals the alert policy pages on, then everything that explains them.
   readonly property var pagedKeys: ["liveQueueWait", "paperQueueWait", "webhookQueueWait", "errorRate", "synthetic"]
-  readonly property var contextKeys: ["webThroughput", "webDuration", "webhooksReceived", "tradesProcessed", "slowestBroker"]
+  // The inbound webhook path gets its own block: it is the front door, it is the
+  // highest-volume web transaction by far, and it is an order of magnitude faster
+  // than a page render -- averaged together with the rest of HTTP, each hid the
+  // other.
+  readonly property var webhookKeys: ["webhookReceiveRate", "webhookReceiveDuration", "webhookReceiveP95"]
+  readonly property var contextKeys: ["webThroughput", "webDuration", "tradesProcessed"]
 
   function rowsFor(keys) {
     var out = []
@@ -60,7 +66,9 @@ Panel {
   }
 
   readonly property var pagedRows: rowsFor(pagedKeys)
+  readonly property var webhookRows: rowsFor(webhookKeys)
   readonly property var contextRows: rowsFor(contextKeys)
+  readonly property var externals: (health && health.externals) || []
 
   function open() {
     root.controller.show()
@@ -135,6 +143,14 @@ Panel {
         else if (t === "o" || t === "O") root.openDashboard()
       }
 
+      // Deliberately not wrapped in an outer Flickable. Tried it, and the card
+      // inflated to the full screen height: this Column's width would come from
+      // a Flickable that KeyboardPanel sizes from the Column, so the first
+      // layout pass measured wrapped text against zero width, produced an
+      // enormous implicitHeight, and fittedContentHeight honoured it. The
+      // panel's total height is instead kept bounded at the source -- the only
+      // section that grows with the data is the broker list, and it carries its
+      // own cap and its own scroll.
       Column {
         id: content
         width: parent.width
@@ -293,7 +309,28 @@ Panel {
         }
 
         PanelSectionHeader {
-          text: "TRAFFIC · LAST 5 MIN"
+          text: "WEBHOOK RECEIVE · LAST 5 MIN"
+          foreground: root.contentForeground
+          fontFamily: root.contentFontFamily
+        }
+
+        Column {
+          width: parent.width
+          spacing: Style.spacing.xs
+
+          Repeater {
+            model: root.webhookRows
+            delegate: metricRow
+          }
+        }
+
+        PanelSeparator {
+          width: parent.width
+          foreground: root.contentForeground
+        }
+
+        PanelSectionHeader {
+          text: "OTHER WEB TRAFFIC · LAST 5 MIN"
           foreground: root.contentForeground
           fontFamily: root.contentFontFamily
         }
@@ -305,6 +342,118 @@ Panel {
           Repeater {
             model: root.contextRows
             delegate: metricRow
+          }
+        }
+
+        PanelSeparator {
+          visible: root.externals.length > 0
+          width: parent.width
+          foreground: root.contentForeground
+        }
+
+        PanelSectionHeader {
+          visible: root.externals.length > 0
+          // The count is part of the heading because the list length is
+          // information: these are the endpoints actually being called right
+          // now, so a quiet overnight desk shows fewer rows than a busy open --
+          // and it says how many rows are below the fold.
+          text: "EXTERNAL APIS · " + root.externals.length + " ACTIVE"
+          foreground: root.contentForeground
+          fontFamily: root.contentFontFamily
+        }
+
+        // Slowest first, so the answer to "is a dependency dragging?" is at the
+        // top and does not need hunting for. No colours: nothing in New Relic
+        // defines what slow means for an external call, so the widget does not
+        // pretend to know either -- the ordering carries it.
+        //
+        // Every host is in this list, but only a few rows of it are on screen at
+        // once: it is the one section that grows with the data, so it scrolls
+        // instead of the panel getting taller. The count in the header is what
+        // says there is more below the fold.
+        Flickable {
+          id: externalScroll
+          visible: root.externals.length > 0
+          width: parent.width
+          height: Math.min(brokerColumn.implicitHeight, Style.space(190))
+          contentWidth: width
+          contentHeight: brokerColumn.implicitHeight
+          clip: true
+          boundsBehavior: Flickable.StopAtBounds
+          interactive: contentHeight > height
+          ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+          // Qt's built-in wheel step on a Flickable is a few pixels -- about a
+          // third of a row here -- which makes a 20-row list feel stuck. Take
+          // the event and move a useful distance instead: pixelDelta where the
+          // device sends it (touchpads, and the Magic Mouse via
+          // magicmouse-scroll's virtual touchpad, so a fling still reads as one
+          // continuous motion), else three rows per notch for a wheel.
+          WheelHandler {
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+            onWheel: function(event) {
+              var pixels = event.pixelDelta.y
+              var delta = pixels !== 0
+                ? pixels * 2
+                : (event.angleDelta.y / 120) * Style.space(22) * 3
+              if (delta === 0) return
+              var limit = Math.max(0, externalScroll.contentHeight - externalScroll.height)
+              externalScroll.contentY = Math.max(0, Math.min(limit, externalScroll.contentY - delta))
+            }
+          }
+
+          Column {
+            id: brokerColumn
+            width: parent.width
+            spacing: Style.spacing.xs
+
+            Repeater {
+              model: root.externals
+
+              Item {
+                required property var modelData
+                width: brokerColumn.width
+                height: Math.max(brokerName.implicitHeight, brokerValue.implicitHeight)
+
+                Text {
+                  id: brokerName
+                  anchors.left: parent.left
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: modelData.label
+                  color: Qt.darker(root.contentForeground, 1.25)
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  elide: Text.ElideRight
+                  width: Math.min(implicitWidth, parent.width * 0.45)
+                }
+
+                Row {
+                  anchors.right: parent.right
+                  anchors.verticalCenter: parent.verticalCenter
+                  spacing: Style.spacing.sm
+
+                  // Call rate sits beside the latency because it changes what
+                  // the latency means: 866ms on an endpoint taking 67 calls a
+                  // minute is a different problem from 866ms on an idle one.
+                  Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: modelData.rateText
+                    color: Qt.darker(root.contentForeground, 1.8)
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption
+                  }
+
+                  Text {
+                    id: brokerValue
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: modelData.text
+                    color: root.stale ? Color.muted : root.contentForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.bodySmall
+                  }
+                }
+              }
+            }
           }
         }
 
@@ -409,7 +558,12 @@ Panel {
         Text {
           id: rowValue
           anchors.verticalCenter: parent.verticalCenter
-          text: modelData.text
+          // "wait" is appended where a duration sits beside it, because the row
+          // label names the pipeline ("Live trades") rather than the number, and
+          // two bare millisecond figures would not say which is which.
+          text: modelData.detail !== "" && modelData.detail.indexOf("run") !== -1
+            ? modelData.text + " wait"
+            : modelData.text
           color: root.stale
             ? Color.muted
             : (modelData.grade === "info" ? root.contentForeground : root.statusColor(modelData.grade))

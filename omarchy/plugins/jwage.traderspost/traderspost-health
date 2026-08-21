@@ -91,8 +91,17 @@ def build_query(account_id):
     """
     app = APP_NAME
     nrql = {
+        # Queue wait is what the alert policy pages on; duration is how long the
+        # work itself then took. Both matter and they fail differently -- a
+        # healthy wait with a climbing duration is a slow broker, the reverse is
+        # a backed-up queue -- so each pipeline reports the pair.
         "liveQueueWait": (
             f"SELECT average(queueWaitTime) AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND name = '{MSG_TRADE}' AND mode = 'live' "
+            f"SINCE 5 minutes ago"
+        ),
+        "liveDuration": (
+            f"SELECT average(duration) * 1000 AS v FROM Transaction "
             f"WHERE appName = '{app}' AND name = '{MSG_TRADE}' AND mode = 'live' "
             f"SINCE 5 minutes ago"
         ),
@@ -101,27 +110,52 @@ def build_query(account_id):
             f"WHERE appName = '{app}' AND name = '{MSG_TRADE}' AND mode = 'paper' "
             f"SINCE 5 minutes ago"
         ),
+        "paperDuration": (
+            f"SELECT average(duration) * 1000 AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND name = '{MSG_TRADE}' AND mode = 'paper' "
+            f"SINCE 5 minutes ago"
+        ),
         "webhookQueueWait": (
             f"SELECT average(queueWaitTime) AS v FROM Transaction "
             f"WHERE appName = '{app}' AND name = '{MSG_WEBHOOK}' SINCE 5 minutes ago"
         ),
-        # rate() rather than count(): the widget shows a per-minute figure, and
-        # letting NRDB divide keeps it honest if the window ever changes.
+        "webhookDuration": (
+            f"SELECT average(duration) * 1000 AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND name = '{MSG_WEBHOOK}' SINCE 5 minutes ago"
+        ),
+        # Webhook receive is the front door -- the inbound TradingView alert
+        # hitting HTTP -- and it is reported on its own rather than averaged into
+        # web traffic. It is by far the highest-volume web transaction and an
+        # order of magnitude faster than a page render, so leaving it in the
+        # general figures buried both: the web average tracked the webhooks and
+        # the webhooks were invisible.
+        "webhookReceiveRate": (
+            f"SELECT rate(count(*), 1 minute) AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND name = '{TXN_WEBHOOK_RECEIVE}' SINCE 5 minutes ago"
+        ),
+        "webhookReceiveDuration": (
+            f"SELECT average(duration) * 1000 AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND name = '{TXN_WEBHOOK_RECEIVE}' SINCE 5 minutes ago"
+        ),
+        "webhookReceiveP95": (
+            f"SELECT percentile(duration, 95) * 1000 AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND name = '{TXN_WEBHOOK_RECEIVE}' SINCE 5 minutes ago"
+        ),
+        # Everything else on HTTP, with the webhook front door excluded so this
+        # describes the app people actually click through.
         "webThroughput": (
             f"SELECT rate(count(*), 1 minute) AS v FROM Transaction "
-            f"WHERE appName = '{app}' AND transactionType = 'Web' SINCE 5 minutes ago"
+            f"WHERE appName = '{app}' AND transactionType = 'Web' "
+            f"AND name != '{TXN_WEBHOOK_RECEIVE}' SINCE 5 minutes ago"
+        ),
+        "webDuration": (
+            f"SELECT average(duration) * 1000 AS v FROM Transaction "
+            f"WHERE appName = '{app}' AND transactionType = 'Web' "
+            f"AND name != '{TXN_WEBHOOK_RECEIVE}' SINCE 5 minutes ago"
         ),
         "errorRate": (
             f"SELECT percentage(count(*), WHERE error IS true) AS v FROM Transaction "
             f"WHERE appName = '{app}' SINCE 5 minutes ago"
-        ),
-        "webDuration": (
-            f"SELECT average(duration) * 1000 AS v FROM Transaction "
-            f"WHERE appName = '{app}' AND transactionType = 'Web' SINCE 5 minutes ago"
-        ),
-        "webhooksReceived": (
-            f"SELECT count(*) AS v FROM Transaction "
-            f"WHERE appName = '{app}' AND name = '{TXN_WEBHOOK_RECEIVE}' SINCE 5 minutes ago"
         ),
         "tradesProcessed": (
             f"SELECT count(*) AS v FROM Transaction "
@@ -131,9 +165,13 @@ def build_query(account_id):
             f"SELECT filter(count(*), WHERE result = 'FAILED') AS v FROM SyntheticCheck "
             f"WHERE entityGuid IN ('{SYNTHETIC_GUID}') AND NOT isMute SINCE 5 minutes ago"
         ),
-        # FACET returns one row per host; the widget names the worst one.
-        "slowestBroker": (
-            f"SELECT average(apm.service.external.host.duration) * 1000 AS v FROM Metric "
+        # Every external host the app called, one row each. Not filtered down to
+        # brokers: Stripe, SendGrid or Google auth going slow is an ops signal
+        # too, and the panel lists the lot slowest-first so whatever is dragging
+        # surfaces regardless of which category someone would have filed it under.
+        "externals": (
+            f"SELECT average(apm.service.external.host.duration) * 1000 AS v, "
+            f"rate(count(apm.service.external.host.duration), 1 minute) AS rpm FROM Metric "
             f"WHERE appName = '{app}' FACET `external.host` "
             f"SINCE 5 minutes ago LIMIT 100"
         ),
@@ -193,21 +231,86 @@ def scalar(account, alias):
     return None if value is None else float(value)
 
 
-def worst_broker(account):
-    """(host, ms) for the slowest broker API, or (None, None)."""
+# Pretty names for the hosts we know -- brokers taken from the "Broker APIs" page
+# of the TradersPost System dashboard, so the widget and that dashboard agree on
+# what to call each endpoint. Anything unlisted falls back to its own hostname,
+# which is how a newly added dependency announces itself. Nothing is filtered
+# out: a host present in the data is a host present in the panel.
+HOST_LABELS = {
+    "api.ibkr.com": "IBKR",
+    "api.alpaca.markets": "Alpaca",
+    "paper-api.alpaca.markets": "Alpaca paper",
+    "data.alpaca.markets": "Alpaca data",
+    "api.bybit.com": "Bybit",
+    "api-testnet.bybit.com": "Bybit paper",
+    "api.coinbase.com": "Coinbase",
+    "api.binance.com": "Binance",
+    "api.etrade.com": "E*TRADE",
+    "api.kraken.com": "Kraken",
+    "api.robinhood.com": "Robinhood",
+    "api.tastytrade.com": "Tastytrade",
+    "api.tradestation.com": "TradeStation",
+    "sim-api.tradestation.com": "TradeStation paper",
+    "signin.tradestation.com": "TradeStation auth",
+    "api.tradier.com": "Tradier",
+    "sandbox.tradier.com": "Tradier paper",
+    "live.tradovateapi.com": "Tradovate",
+    "demo.tradovateapi.com": "Tradovate paper",
+    "us-oauth-open-api.webull.com": "Webull",
+    "api.topstepx.com": "TopstepX",
+    "api.thefuturesdesk.projectx.com": "Futures Desk",
+    "api.polygon.io": "Polygon data",
+    # Not brokers, but on request paths that matter, so listed alongside them
+    # rather than hidden.
+    "api.stripe.com": "Stripe",
+    "api.sendgrid.com": "SendGrid",
+    "oauth2.googleapis.com": "Google OAuth",
+    "openidconnect.googleapis.com": "Google OIDC",
+    "www.google.com": "Google",
+    "analytics.traderspost.io": "TradersPost analytics",
+}
+
+
+def externals(account):
+    """Every external host called in the window, slowest first.
+
+    Slowest first because that is the order it gets read in: the question this
+    list answers is "is a dependency dragging?", and the answer is at the top.
+
+    A host with no calls in the window has no latency to report and so is absent
+    rather than shown as zero -- the list is whatever is actually being called
+    right now, which is why it changes length through the day.
+    """
     try:
-        results = account["slowestBroker"]["results"]
+        results = account["externals"]["results"]
     except (KeyError, TypeError):
-        return None, None
-    worst_host, worst_ms = None, None
+        return []
+
+    out = []
     for row in results or []:
-        value = row.get("v")
         host = row.get("facet") or row.get("external.host")
-        if value is None or host is None:
+        value = row.get("v")
+        if host is None or value is None:
             continue
-        if worst_ms is None or float(value) > worst_ms:
-            worst_host, worst_ms = str(host), float(value)
-    return worst_host, worst_ms
+        host = str(host)
+        out.append({
+            "host": host,
+            "label": HOST_LABELS.get(host, host),
+            "ms": float(value),
+            "rpm": float(row.get("rpm") or 0.0),
+        })
+
+    out.sort(key=lambda entry: -entry["ms"])
+    return out
+
+
+def format_ms(value):
+    """Same rounding Model.js uses, so the detail column matches the values."""
+    if value < 1:
+        return "<0.1ms" if value < 0.1 else f"{value:.1f}ms"
+    if value < 1000:
+        return f"{round(value)}ms"
+    return f"{value / 1000:.1f}s" if value < 10000 else f"{round(value / 1000)}s"
 
 
 def grade_queue(value):
@@ -250,25 +353,29 @@ def collect():
     webhook = scalar(account, "webhookQueueWait")
     error_rate = scalar(account, "errorRate")
     synthetic_failures = scalar(account, "syntheticFailures") or 0.0
-    broker_host, broker_ms = worst_broker(account)
+    external_list = externals(account)
+
+    def run_detail(alias):
+        """Processing time, phrased for the dim column beside the queue wait.
+
+        Spelled out as "wait / run" because the row label names the pipeline
+        rather than either number: without the words, two bare millisecond
+        figures side by side say nothing about which is which.
+        """
+        value = scalar(account, alias)
+        return "" if value is None else f"{format_ms(value)} run"
 
     metrics = {
+        # Graded on the wait, which is what New Relic pages on; the duration
+        # rides along as context because the two fail differently.
         "liveQueueWait": {"value": live, "unit": "ms", "grade": grade_queue(live),
-                          "label": "Live queue wait"},
+                          "label": "Live trades", "detail": run_detail("liveDuration")},
         "paperQueueWait": {"value": paper, "unit": "ms", "grade": grade_queue(paper),
-                           "label": "Paper queue wait"},
+                           "label": "Paper trades", "detail": run_detail("paperDuration")},
         "webhookQueueWait": {"value": webhook, "unit": "ms", "grade": grade_queue(webhook),
-                             "label": "Webhook queue wait"},
+                             "label": "Webhook handling", "detail": run_detail("webhookDuration")},
         "errorRate": {"value": error_rate, "unit": "%", "grade": grade_error_rate(error_rate),
                       "label": "Error rate"},
-        "webThroughput": {"value": scalar(account, "webThroughput"), "unit": "/min",
-                          "grade": "info", "label": "Web throughput"},
-        "webDuration": {"value": scalar(account, "webDuration"), "unit": "ms",
-                        "grade": "info", "label": "Web response"},
-        "webhooksReceived": {"value": scalar(account, "webhooksReceived"), "unit": "",
-                             "grade": "info", "label": "Webhooks (5m)"},
-        "tradesProcessed": {"value": scalar(account, "tradesProcessed"), "unit": "",
-                            "grade": "info", "label": "Trades (5m)"},
         "synthetic": {
             "value": synthetic_failures,
             "unit": "",
@@ -278,11 +385,22 @@ def collect():
             "grade": "critical" if synthetic_failures > 3 else ("warning" if synthetic_failures else "ok"),
             "label": "Homepage check",
         },
-        # Every external host the app talks to, not just brokers -- Stripe or a
-        # data vendor going slow is an ops signal too, so the label says API
-        # rather than broker and the host name carries the specifics.
-        "slowestBroker": {"value": broker_ms, "unit": "ms", "grade": "info",
-                          "label": "Slowest API", "detail": broker_host or ""},
+
+        # The webhook front door, on its own.
+        "webhookReceiveRate": {"value": scalar(account, "webhookReceiveRate"), "unit": "/min",
+                               "grade": "info", "label": "Received"},
+        "webhookReceiveDuration": {"value": scalar(account, "webhookReceiveDuration"), "unit": "ms",
+                                   "grade": "info", "label": "Receive average"},
+        "webhookReceiveP95": {"value": scalar(account, "webhookReceiveP95"), "unit": "ms",
+                              "grade": "info", "label": "Receive p95"},
+
+        # Everything else.
+        "webThroughput": {"value": scalar(account, "webThroughput"), "unit": "/min",
+                          "grade": "info", "label": "Web throughput"},
+        "webDuration": {"value": scalar(account, "webDuration"), "unit": "ms",
+                        "grade": "info", "label": "Web response"},
+        "tradesProcessed": {"value": scalar(account, "tradesProcessed"), "unit": "",
+                            "grade": "info", "label": "Trades (5m)"},
     }
 
     # Open issues outrank everything: New Relic having decided something is
@@ -306,6 +424,11 @@ def collect():
         "status": overall,
         "app": APP_NAME,
         "metrics": metrics,
+        # Ungraded on purpose. Nothing in New Relic defines what "slow" means
+        # for an external call, and this widget does not invent thresholds -- so
+        # these carry no colour and no dot, and the slowest-first ordering is
+        # what does the work.
+        "externals": external_list,
         "issues": [
             {
                 "title": str(issue.get("title") or ""),
@@ -339,6 +462,10 @@ def format_human(health):
         lines.append(f"  {mark:<5} {metric['label']:<20} {shown}{detail}")
     for issue in health["issues"]:
         lines.append(f"  ISSUE {issue['priority']}: {issue['title']}")
+    if health.get("externals"):
+        lines.append(f"  external APIs ({len(health['externals'])} called in the last 5 min, slowest first)")
+        for host in health["externals"]:
+            lines.append(f"    {host['label']:<24} {host['ms']:>6.0f}ms {host['rpm']:>9,.0f}/min")
     return "\n".join(lines)
 
 

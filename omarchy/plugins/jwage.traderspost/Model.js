@@ -13,20 +13,21 @@
 var STATUS_ORDER = ["critical", "warning", "unknown", "ok"]
 
 // The order metrics appear in the panel: the three the alert policy actually
-// pages on first, then correctness (errors, synthetic), then volume, then
-// dependencies. Reading top to bottom should go from "what wakes you up" to
-// "what the system is doing".
+// pages on first, then correctness (errors, synthetic), then the webhook front
+// door, then everything else on HTTP. Reading top to bottom should go from
+// "what wakes you up" to "what the system is doing".
 var METRIC_ORDER = [
   "liveQueueWait",
   "paperQueueWait",
   "webhookQueueWait",
   "errorRate",
   "synthetic",
+  "webhookReceiveRate",
+  "webhookReceiveDuration",
+  "webhookReceiveP95",
   "webThroughput",
   "webDuration",
-  "webhooksReceived",
-  "tradesProcessed",
-  "slowestBroker"
+  "tradesProcessed"
 ]
 
 var STATUS_WORDS = {
@@ -88,9 +89,29 @@ function parseHealth(raw) {
     status: String(payload.status || "unknown"),
     app: String(payload.app || ""),
     rows: rows,
+    externals: normalizeExternals(payload.externals),
     issues: normalizeIssues(payload.issues),
     error: ""
   }
+}
+
+// External-call latencies, in the order the helper sent them (slowest first).
+// Kept as its own list rather than folded into `rows` because these carry no
+// grade: nothing in New Relic says what "slow" means for an external call, so
+// there is no colour to assign and the ordering is the signal.
+function normalizeExternals(externals) {
+  var out = []
+  for (var i = 0; i < (externals || []).length; i++) {
+    var host = externals[i] || {}
+    var ms = Number(host.ms)
+    out.push({
+      host: String(host.host || ""),
+      label: String(host.label || host.host || "unknown"),
+      text: isFinite(ms) ? formatMs(ms) : "—",
+      rateText: formatRate(host.rpm)
+    })
+  }
+  return out
 }
 
 function failure(message) {
@@ -99,6 +120,7 @@ function failure(message) {
     status: "unknown",
     app: "",
     rows: [],
+    externals: [],
     issues: [],
     error: String(message || "unavailable")
   }
@@ -151,24 +173,27 @@ function formatMs(value) {
   return (value / 1000).toFixed(value < 10000 ? 1 : 0) + "s"
 }
 
+function formatRate(value) {
+  var number = Number(value)
+  if (!isFinite(number) || number <= 0) return "idle"
+  if (number < 1) return "<1/min"
+  return formatCount(number) + "/min"
+}
+
 function formatCount(value) {
   if (value >= 100000) return Math.round(value / 1000) + "k"
   if (value >= 10000) return (value / 1000).toFixed(1) + "k"
   return String(Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, ",")
 }
 
-// ---- Bar label. The bar gets a dot and a number; the panel gets the detail.
-//      Response time is the number, because it is the one figure that moves
-//      continuously and so shows at a glance that the widget is live rather
-//      than stuck.
+// ---- Bar label. Just the dot: colour is the whole message at bar scale, and a
+//      response time beside it was noise -- a number nobody acts on, changing
+//      every poll. The detail lives one hover (tooltip) or one click (panel)
+//      away, and freshness is carried by the dot going grey rather than by a
+//      figure ticking over.
 
-function barLabel(health, showLatency) {
-  var dot = "●"
-  if (!health || !health.ok) return dot
-  if (!showLatency) return dot
-
-  var latency = findRow(health, "webDuration")
-  return latency && latency.text !== "—" ? dot + " " + latency.text : dot
+function barLabel(health) {
+  return "●"
 }
 
 function findRow(health, key) {
@@ -234,7 +259,9 @@ if (typeof module !== "undefined") {
     formatMetric: formatMetric,
     formatPercent: formatPercent,
     formatMs: formatMs,
+    formatRate: formatRate,
     formatCount: formatCount,
+    normalizeExternals: normalizeExternals,
     barLabel: barLabel,
     findRow: findRow,
     summaryLine: summaryLine,
