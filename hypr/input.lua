@@ -67,39 +67,6 @@ hl.device({
   kb_options = "compose:caps,shift:both_capslock_cancel,altwin:swap_alt_win",
 })
 
--- Per-device override so mouse sensitivity doesn't affect the trackpad.
--- This is the Apple Magic Mouse, paired over Bluetooth as "Jonathan's Magic
--- Mouse" — Hyprland derives the device name from that Bluetooth name, so it
--- has to match exactly (curly apostrophe included) or this override silently
--- matches nothing. Buttons and pointer motion stay on this native device.
--- Surface scrolling is observed non-exclusively by magicmouse-scroll and
--- emitted through a separate virtual touchpad, so this path never recreates
--- or delays clicks.
---
--- accel_profile = "flat" drops libinput's own acceleration curve, which
--- ramps up far more aggressively on fast flicks than macOS's does — that
--- mismatch is most of what makes the pointer feel "too fast" by comparison.
--- Hyprland/libinput don't expose a true custom curve for pointer motion
--- (only for scroll), so flat + a plain speed multiplier is the closest
--- approximation available, not a byte-for-byte match. Retune sensitivity
--- to taste (-1 slowest, 1 fastest).
-hl.device({
-  name = "jonathan’s-magic-mouse",
-  accel_profile = "flat",
-  sensitivity = -0.5,
-})
-
--- This virtual device carries Magic Mouse scroll gestures only. Omarchy
--- enables touchpad tapping globally, which would turn a short generated
--- two-finger sequence into an accidental click. It must have no click path;
--- the physical Magic Mouse continues to provide all buttons directly.
-hl.device({
-  name = "magicmouse-scroll-touchpad",
-  tap_to_click = false,
-  tap_and_drag = false,
-  clickfinger_behavior = false,
-})
-
 -- App-specific touchpad scroll speeds.
 -- o.window("(Alacritty|kitty|foot)", { scroll_touchpad = 1.5 })
 -- o.window("com.mitchellh.ghostty", { scroll_touchpad = 0.2 })
