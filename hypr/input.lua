@@ -67,23 +67,91 @@ hl.device({
   kb_options = "compose:caps,shift:both_capslock_cancel,altwin:swap_alt_win",
 })
 
--- Slow the Magic Mouse pointer down. libinput's default (0) is tuned for a
--- mouse with far more travel per hand movement than this one; -0.45 keeps the
--- adaptive acceleration curve (a fast flick still crosses the screen) but
--- lowers the whole curve, so ordinary aiming takes deliberate motion. Range is
--- -1.0 to 1.0. Set per device rather than as input.sensitivity so the laptop
--- touchpad, which is already fine, is not dragged down with it.
+-- Magic Mouse pointer acceleration curve.
+--
+-- The goal is the macOS pointer feel: creep the mouse and the cursor barely
+-- moves, so a small target is easy to land on, but flick it and the cursor
+-- crosses the screen. libinput's stock "adaptive" profile cannot do that. Its
+-- gain saturates at the profile's maximum once the hand passes roughly
+-- 33 mm/s, which is slower than almost any deliberate movement, so nearly
+-- everything above a crawl gets the same constant gain. Lowering `sensitivity`
+-- does not restore the range -- the speed setting *lowers that ceiling* (and
+-- raises the threshold), so the -0.45 that used to be here was making fast and
+-- slow movement more alike, not less. That is the "hard to click things"
+-- feeling: no fine-control region, just one flat gain everywhere.
+--
+-- libinput's "custom" profile replaces the curve outright with a piecewise
+-- linear one defined here. It is the only option that changes the *shape* of
+-- the response rather than its overall level. `sensitivity` is ignored while
+-- this profile is active -- libinput keeps the value but stops applying it --
+-- which is why it is gone from the rule below rather than kept alongside.
+--
+-- The curve is f(x): x is hand speed in device units per millisecond and f(x)
+-- is the resulting pointer speed, so the gain at any speed is f(x)/x. libinput
+-- assumes 1000 dpi when udev's hwdb has no MOUSE_DPI entry for a device, and
+-- it has none for the Magic Mouse, so 1 unit/ms is about 25 mm/s.
+--
+-- Tune by editing GAIN -- {hand speed, gain} pairs, linearly interpolated.
+-- Only the gain column normally needs touching:
+--   whole pointer too slow or too fast -> scale every gain
+--   overshooting small targets         -> lower the first few gains
+--   flicks do not cross the screen     -> raise the last few gains
+-- The last pair repeats the previous gain on purpose. Past the final point
+-- libinput extrapolates from the last two, so a flat tail caps the gain for
+-- movements faster than the table covers instead of letting it run away.
+local GAIN = {
+  { 0.0, 0.40 }, --   0 mm/s -- fine positioning; pointer moves less than the hand
+  { 0.5, 0.45 }, --  13 mm/s
+  { 1.0, 0.60 }, --  25 mm/s
+  { 2.0, 0.90 }, --  51 mm/s
+  { 4.0, 1.30 }, -- 102 mm/s -- ordinary aiming, about where the old flat gain sat
+  { 8.0, 1.85 }, -- 203 mm/s
+  { 16.0, 2.55 }, -- 406 mm/s
+  { 24.0, 3.00 }, -- 610 mm/s -- flicks across the screen
+  { 31.5, 3.00 }, -- 800 mm/s -- flat tail, see above
+}
+
+-- Sample GAIN into the uniformly spaced points libinput wants: a step, then
+-- f() at 0, step, 2*step, ... 64 points is libinput's maximum. Keep the last
+-- GAIN speed equal to (npoints - 1) * step so the table covers the whole curve
+-- and the flat tail lands where the extrapolation starts.
+local function accel_profile(step, npoints)
+  local function gain_at(x)
+    if x <= GAIN[1][1] then
+      return GAIN[1][2]
+    end
+    for i = 1, #GAIN - 1 do
+      local x0, g0 = GAIN[i][1], GAIN[i][2]
+      local x1, g1 = GAIN[i + 1][1], GAIN[i + 1][2]
+      if x <= x1 then
+        return g0 + (g1 - g0) * (x - x0) / (x1 - x0)
+      end
+    end
+    return GAIN[#GAIN][2]
+  end
+
+  local points = {}
+  for i = 0, npoints - 1 do
+    local x = i * step
+    points[#points + 1] = string.format("%.4f", x * gain_at(x))
+  end
+  return string.format("custom %.3f %s", step, table.concat(points, " "))
+end
+
+-- Only the pointer curve is set, not scroll_points: Magic Mouse surface
+-- scrolling does not come through this device at all. It arrives on the
+-- virtual touchpad below, which has its own acceleration.
 --
 -- "dark-work-mouse" is the Magic Mouse's *Bluetooth alias*, lowercased and
 -- hyphenated. That alias is user-editable, and Hyprland device rules can only
 -- match on the name -- rename the mouse in Bluetooth settings and this rule
 -- stops applying, silently. (magicmouse-scroll matches on the USB/BT vendor and
 -- product IDs instead, for exactly this reason, but that option does not exist
--- here.) If the pointer speed ever reverts on its own, check the alias first:
+-- here.) If the pointer feel ever reverts on its own, check the alias first:
 --   bluetoothctl devices | grep -i mouse
 hl.device({
   name = "dark-work-mouse",
-  sensitivity = -0.45,
+  accel_profile = accel_profile(0.5, 64),
 })
 
 -- The virtual touchpad that magicmouse-scroll emits Magic Mouse surface
