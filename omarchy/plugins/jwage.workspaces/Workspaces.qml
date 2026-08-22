@@ -277,10 +277,6 @@ BarWidget {
   // *active tab's* title, so two accounts living as two tabs can never both
   // be read — which is exactly why they were split out.
   readonly property string gmailAppIdPrefix: "chrome-mail.google.com__"
-  // Explicit left-to-right priority for the workspace app strip. Apps not
-  // listed here retain their stable compositor order after these entries.
-  readonly property var appOrder: ["gmail", "slack", "signal"]
-  readonly property var workspaceAppOrder: ({ "2": ["google-chrome"] })
   readonly property int maxUnreadShown: 99
   readonly property string slackStatePath: Quickshell.env("HOME") + "/.config/Slack/storage/root-state.json"
   property var slackState: null
@@ -486,7 +482,7 @@ BarWidget {
   // that means "your mail" beats one icon per account. Entries retain the
   // order in which the toplevel collection supplies them, so focusing a
   // window never changes the icon order.
-  function buildEntries(toplevels, workspaceId) {
+  function buildEntries(toplevels) {
     var gmailRefresh = root.gmailRevision
     var entries = []
     var gmailWindows = []
@@ -511,7 +507,6 @@ BarWidget {
 
       entries.push({
         gmail: false,
-        workspaceId: workspaceId,
         appId: appId,
         toplevel: toplevel,
         address: String(toplevel["address"] || ""),
@@ -525,7 +520,6 @@ BarWidget {
     if (gmailWindows.length > 0) {
       var gmailEntry = root.buildGmailEntry(gmailWindows)
       gmailEntry.order = gmailOrder
-      gmailEntry.workspaceId = workspaceId
       entries.push(gmailEntry)
     }
 
@@ -575,24 +569,20 @@ BarWidget {
   // The explicit order comes from the toplevel collection, not live window
   // geometry. The address tie-break only handles a defensive missing order.
   function compareEntries(left, right) {
-    var leftKey = root.appOrderKey(left)
-    var rightKey = root.appOrderKey(right)
-    var order = root.workspaceAppOrder[String(left.workspaceId)] || root.appOrder
-    var leftPriority = order.indexOf(leftKey)
-    var rightPriority = order.indexOf(rightKey)
-    if (leftPriority === -1) leftPriority = order.length
-    if (rightPriority === -1) rightPriority = order.length
-    if (leftPriority !== rightPriority) return leftPriority - rightPriority
     if (left.order !== right.order) return left.order - right.order
     return String(left.address).localeCompare(String(right.address))
   }
 
-  function appOrderKey(entry) {
-    if (entry.gmail) return "gmail"
-    var appId = String(entry.appId || "").toLowerCase()
-    if (appId.indexOf("slack") !== -1) return "slack"
-    if (appId.indexOf("signal") !== -1) return "signal"
-    return appId
+  function entryIsFocused(entry) {
+    var active = Hyprland.activeToplevel
+    if (!entry || !active) return false
+    var activeAddress = root.normalizedAddress(active.address)
+    if (entry.gmail && entry.accounts) {
+      for (var i = 0; i < entry.accounts.length; i++)
+        if (root.normalizedAddress(entry.accounts[i].address) === activeAddress) return true
+      return false
+    }
+    return root.normalizedAddress(entry.address) === activeAddress
   }
 
   function gmailTooltip(entry) {
@@ -717,7 +707,7 @@ BarWidget {
         readonly property bool showIcons: !root.vertical && occupied
         // Windows folded into what the strip actually draws: Gmail collapsed
         // to one entry, everything kept in stable compositor order.
-        readonly property var entries: root.buildEntries(toplevels, modelData)
+        readonly property var entries: root.buildEntries(toplevels)
 
         bar: root.bar
         text: numberText
@@ -776,6 +766,7 @@ BarWidget {
               readonly property bool isGmail: entry !== null && entry.gmail === true
               readonly property bool isSlack: entry !== null && entry.appId === "slack"
               readonly property int unreadCount: entry !== null ? entry.unread : 0
+              readonly property bool appFocused: root.entryIsFocused(entry)
               // Slack's status-notifier icon already carries its live unread
               // indicator; use that same icon rather than a second stale badge.
               readonly property bool hasUnreadIndicator: unreadCount > 0 && !isSlack
@@ -826,6 +817,7 @@ BarWidget {
               }
 
               anchors.verticalCenter: parent.verticalCenter
+              opacity: windowEntry.appFocused ? 1.0 : 0.55
               // The unread count is an overlay, so it must not widen the icon
               // slot or push the following app away from its normal spacing.
               implicitWidth: windowIcon.width
@@ -842,6 +834,18 @@ BarWidget {
                 sourceSize.height: height * Screen.devicePixelRatio
                 source: root.windowIconSource(windowEntry.entry ? windowEntry.entry.appId : "",
                                               windowEntry.entry ? windowEntry.entry.address : "")
+              }
+
+              Rectangle {
+                anchors.horizontalCenter: windowIcon.horizontalCenter
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: -5
+                width: Math.round(windowIcon.width * 1.0)
+                height: 2
+                radius: 1
+                color: Color.accent
+                visible: windowEntry.appFocused
+                z: 3
               }
 
               // Familiar notification-badge treatment: the count sits over
