@@ -180,6 +180,41 @@ BarWidget {
   // for focus directly and does no warping -- and skips a subprocess besides.
   // The dispatcher stays as the fallback for anything with no live handle.
   function focusToplevel(toplevel, address) {
+    var active = Hyprland.activeToplevel
+    var activeAddress = active ? root.normalizedAddress(active.address) : ""
+    var targetAddress = root.normalizedAddress(address)
+    var activeIpc = active ? active.lastIpcObject : null
+    var activeInternalFullscreen = activeIpc ? Number(activeIpc["fullscreen"] || 0) : 0
+    var activeClientFullscreen = activeIpc ? Number(activeIpc["fullscreenClient"] || 0) : 0
+    var targetWorkspace = toplevel ? toplevel.workspace : null
+    var fullscreenWindow = targetWorkspace ? targetWorkspace.fullscreenWindow : null
+    var fullscreenAddress = fullscreenWindow ? String(fullscreenWindow.address || "") : ""
+    var fullscreenIpc = fullscreenWindow ? fullscreenWindow.lastIpcObject : null
+    var fullscreenInternal = fullscreenIpc ? Number(fullscreenIpc["fullscreen"] || 0) : 0
+    var fullscreenClient = fullscreenIpc ? Number(fullscreenIpc["fullscreenClient"] || 0) : 0
+    var transferAddress = fullscreenAddress || activeAddress
+    var transferInternal = fullscreenAddress ? fullscreenInternal : activeInternalFullscreen
+    var transferClient = fullscreenAddress ? fullscreenClient : activeClientFullscreen
+
+    // Workspace switching deliberately ignores focus requests underneath a
+    // fullscreen window. An explicit click on an app icon is different: the
+    // user is asking for that app. Transfer the current fullscreen mode to
+    // the clicked target before focusing it, so tiled-fullscreen workspaces
+    // stay tiled-fullscreen instead of dropping back into the layout.
+    if (transferAddress !== targetAddress && (transferInternal > 0 || transferClient > 0)) {
+      if (!root.bar || !address) return
+      var hex = String(address).replace(/^0x/i, "")
+      var sourceHex = String(transferAddress).replace(/^0x/i, "")
+      var targetState = transferClient === 2
+        ? "hl.dsp.window.fullscreen_state({ internal = 0, client = 2, window = \"address:0x" + hex + "\" })"
+        : "hl.dsp.window.fullscreen_state({ internal = 1, client = 1, window = \"address:0x" + hex + "\" })"
+      var clearState = "hl.dsp.window.fullscreen_state({ internal = 0, client = 0, window = \"address:0x" + sourceHex + "\" })"
+      root.bar.run("hyprctl dispatch " + Util.shellQuote(clearState)
+        + " && hyprctl dispatch " + Util.shellQuote(targetState)
+        + " && hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ window = \"address:0x" + hex + "\" })"))
+      return
+    }
+
     if (toplevel && toplevel.wayland && typeof toplevel.wayland.activate === "function") {
       toplevel.wayland.activate()
       return
