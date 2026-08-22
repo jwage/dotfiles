@@ -678,6 +678,11 @@ BarWidget {
 
   readonly property real trailingGap: root.vertical ? 0 : Style.spaceReal(1.5)
   readonly property int iconSize: Math.round(root.barSize * 0.6)
+  // Shared by columnSpacing and the divider's own centering margin below, so
+  // the divider always lands exactly halfway through the gap no matter what
+  // this is tuned to -- a hand-picked margin drifts out of sync the moment
+  // either value changes.
+  readonly property real workspaceGap: root.vertical ? 0 : Style.spaceReal(5)
 
   implicitWidth: grid.implicitWidth + trailingGap
   implicitHeight: grid.implicitHeight
@@ -687,7 +692,7 @@ BarWidget {
     anchors.fill: parent
     anchors.rightMargin: root.trailingGap
     columns: root.vertical ? 1 : root.workspaceIds().length
-    columnSpacing: root.vertical ? 0 : Style.space(5)
+    columnSpacing: root.workspaceGap
     rowSpacing: root.vertical ? Style.space(2) : 0
 
     Repeater {
@@ -724,10 +729,13 @@ BarWidget {
         // divider is just structure, not a focus indicator, so it doesn't
         // change color or hide itself when focused, and it sits outside
         // dimmableContent below so an empty, unfocused neighbor doesn't
-        // fade it too.
+        // fade it too. Offsetting by half of workspaceGap (rather than
+        // sitting flush on parent.left) is what actually centers it in the
+        // gap -- flush left put it 6px from this workspace's own icons but
+        // columnSpacing + 6px from the previous one's.
         Rectangle {
           anchors.left: parent.left
-          anchors.leftMargin: -Style.space(2)
+          anchors.leftMargin: -root.workspaceGap / 2
           anchors.verticalCenter: parent.verticalCenter
           width: 1
           height: Style.space(16)
@@ -744,7 +752,7 @@ BarWidget {
           Row {
             id: content
             anchors.centerIn: parent
-            spacing: Style.space(3)
+            spacing: Style.space(6)
 
             // Empty workspaces have no app icon to show focus on, so they keep
             // the number -- with the same accent pill as before when focused.
