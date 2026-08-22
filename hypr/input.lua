@@ -27,6 +27,17 @@ hl.config({
   },
 })
 
+-- Keep the pointer on the bar when a workspace icon focuses a window. Without
+-- both overrides, Hyprland may warp it into the focused window (or the centre
+-- of a newly selected workspace), where focus-follows-mouse can immediately
+-- steal focus back from the window the icon selected.
+hl.config({
+  cursor = {
+    no_warps = true,
+    warp_on_change_workspace = 0,
+  },
+})
+
 -- hl.config({
 --   input = {
 --     -- Use multiple keyboard layouts and switch between them with Left Alt + Right Alt.

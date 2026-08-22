@@ -172,6 +172,22 @@ BarWidget {
     root.bar.run("hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ window = \"address:0x" + hex + "\" })"))
   }
 
+  // Focus a window without dragging the pointer along with it. Hyprland warps
+  // the cursor into whatever focuswindow focuses (cursor:no_warps defaults
+  // off), which is wrong for a click that came from the bar: the pointer is up
+  // here on the icon and should stay there, not get flung into the middle of
+  // the window that just came forward. Activating the Wayland toplevel asks
+  // for focus directly and does no warping -- and skips a subprocess besides.
+  // The dispatcher stays as the fallback for anything with no live handle.
+  function focusToplevel(toplevel, address) {
+    if (toplevel && toplevel.wayland && typeof toplevel.wayland.activate === "function") {
+      toplevel.wayland.activate()
+      return
+    }
+
+    root.focusWindow(address)
+  }
+
   function workspaceToplevels(workspace) {
     if (!workspace) return []
     try {
@@ -238,10 +254,12 @@ BarWidget {
     return String(title || "").trim() || "Gmail"
   }
 
-  // hyprctl's "at" for the window, so icons can be ordered the way the
-  // windows are actually arranged on screen instead of however Hyprland
-  // happens to hand back the list. lastIpcObject is refreshed along with the
-  // toplevel set, so this follows opens, closes and workspace moves.
+  // Retain the compositor's toplevel order for the icon strip. Sorting by
+  // hyprctl's "at" made the strip jump whenever focusing a tiled window
+  // changed the layout: the focused window could move to the top-left and
+  // suddenly become the first icon. The toplevel collection order is stable
+  // for the lifetime of the windows, and changes only when windows are added,
+  // removed, or moved between workspaces.
   function windowPosition(toplevel) {
     var ipc = toplevel ? toplevel.lastIpcObject : null
     var at = ipc ? ipc["at"] : null
@@ -290,12 +308,13 @@ BarWidget {
 
   // One entry per window, except Gmail: every Gmail window folds into a
   // single entry carrying the summed unread count, because one mail icon
-  // that means "your mail" beats one icon per account. Entries are then
-  // ordered by on-screen position — top row first, then left to right — so
-  // the icon strip reads in the same order the workspace looks.
+  // that means "your mail" beats one icon per account. Entries retain the
+  // order in which the toplevel collection supplies them, so focusing a
+  // window never changes the icon order.
   function buildEntries(toplevels) {
     var entries = []
     var gmailWindows = []
+    var gmailOrder = -1
 
     for (var i = 0; i < toplevels.length; i++) {
       var toplevel = toplevels[i]
@@ -304,20 +323,27 @@ BarWidget {
       var appId = root.windowAppId(toplevel)
       if (root.isGmailWindow(appId)) {
         gmailWindows.push(toplevel)
+        if (gmailOrder === -1) gmailOrder = i
         continue
       }
 
       entries.push({
         gmail: false,
         appId: appId,
+        toplevel: toplevel,
         address: String(toplevel["address"] || ""),
         position: root.windowPosition(toplevel),
+        order: i,
         unread: 0,
         accounts: []
       })
     }
 
-    if (gmailWindows.length > 0) entries.push(root.buildGmailEntry(gmailWindows))
+    if (gmailWindows.length > 0) {
+      var gmailEntry = root.buildGmailEntry(gmailWindows)
+      gmailEntry.order = gmailOrder
+      entries.push(gmailEntry)
+    }
 
     entries.sort(root.compareEntries)
     return entries
@@ -337,11 +363,12 @@ BarWidget {
       accounts.push({
         label: root.gmailAccountLabel(title),
         unread: unread,
+        toplevel: toplevel,
         address: String(toplevel["address"] || "")
       })
 
-      // The group sorts as whichever of its windows sits furthest top-left,
-      // so it takes the place in the strip a reader would expect.
+      // The group keeps the position of the first Gmail window in the
+      // compositor's stable toplevel order.
       var at = root.windowPosition(toplevel)
       if (position === null || at.y < position.y || (at.y === position.y && at.x < position.x)) position = at
     }
@@ -353,6 +380,7 @@ BarWidget {
     return {
       gmail: true,
       appId: root.windowAppId(windows[0]),
+      toplevel: windows.length > 0 ? windows[0] : null,
       address: accounts.length > 0 ? accounts[0].address : "",
       position: position || ({ x: 0, y: 0 }),
       unread: total,
@@ -360,12 +388,10 @@ BarWidget {
     }
   }
 
-  // Reading order: top row first, then left to right within the row. The
-  // address tie-break keeps the order from wobbling between two windows that
-  // report the same position (a stack, or geometry that has not refreshed).
+  // The explicit order comes from the toplevel collection, not live window
+  // geometry. The address tie-break only handles a defensive missing order.
   function compareEntries(left, right) {
-    if (left.position.y !== right.position.y) return left.position.y - right.position.y
-    if (left.position.x !== right.position.x) return left.position.x - right.position.x
+    if (left.order !== right.order) return left.order - right.order
     return String(left.address).localeCompare(String(right.address))
   }
 
@@ -399,7 +425,8 @@ BarWidget {
       }
     }
 
-    root.focusWindow(ordered[(index + 1) % ordered.length].address)
+    var next = ordered[(index + 1) % ordered.length]
+    root.focusToplevel(next.toplevel, next.address)
   }
 
   // App icons come from the window's app id. A window's app id and its
@@ -482,7 +509,7 @@ BarWidget {
         // (sidebar) layout has no room for it and just keeps the number.
         readonly property bool showIcons: !root.vertical && occupied
         // Windows folded into what the strip actually draws: Gmail collapsed
-        // to one entry, everything ordered by on-screen position.
+        // to one entry, everything kept in stable compositor order.
         readonly property var entries: root.buildEntries(toplevels)
 
         bar: root.bar
@@ -563,7 +590,7 @@ BarWidget {
                 if (button !== Qt.LeftButton || !windowEntry.entry) return
 
                 if (windowEntry.isGmail) root.focusGmail(windowEntry.entry)
-                else root.focusWindow(windowEntry.entry.address)
+                else root.focusToplevel(windowEntry.entry.toplevel, windowEntry.entry.address)
               }
 
               // The lookup scans registrations newest-first, so the last one
