@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import Quickshell.Hyprland
+import Quickshell.Services.SystemTray
 import qs.Commons
 import qs.Ui
 
@@ -46,6 +47,25 @@ BarWidget {
   // cheap `ps` + `awk`.
   property var _probeQueue: []
   property bool _probeBusy: false
+
+  function slackTrayIconSource() {
+    var items = SystemTray.items.values
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i]
+      if (String(item.id || "").indexOf("Slack_status_icon") !== -1)
+        return String(item.icon || "")
+    }
+    return ""
+  }
+  property string focusHelperAddress: ""
+
+  Process {
+    id: focusHelper
+    command: ["bash", Qt.resolvedUrl("focus-window").toString().replace("file://", ""), root.focusHelperAddress]
+    onExited: function(exitCode) {
+      focusHelper.running = false
+    }
+  }
 
   // Drop a window's cached agent as it closes. objectRemovedPre (rather than
   // Post, or a sweep of the live set) is deliberate: it still has the
@@ -172,6 +192,12 @@ BarWidget {
     root.bar.run("hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ window = \"address:0x" + hex + "\" })"))
   }
 
+  function runFocusHelper(address) {
+    if (!address) return
+    root.focusHelperAddress = String(address)
+    focusHelper.running = true
+  }
+
   // Focus a window without dragging the pointer along with it. Hyprland warps
   // the cursor into whatever focuswindow focuses (cursor:no_warps defaults
   // off), which is wrong for a click that came from the bar: the pointer is up
@@ -183,35 +209,16 @@ BarWidget {
     var active = Hyprland.activeToplevel
     var activeAddress = active ? root.normalizedAddress(active.address) : ""
     var targetAddress = root.normalizedAddress(address)
-    var activeIpc = active ? active.lastIpcObject : null
-    var activeInternalFullscreen = activeIpc ? Number(activeIpc["fullscreen"] || 0) : 0
-    var activeClientFullscreen = activeIpc ? Number(activeIpc["fullscreenClient"] || 0) : 0
-    var targetWorkspace = toplevel ? toplevel.workspace : null
-    var fullscreenWindow = targetWorkspace ? targetWorkspace.fullscreenWindow : null
-    var fullscreenAddress = fullscreenWindow ? String(fullscreenWindow.address || "") : ""
-    var fullscreenIpc = fullscreenWindow ? fullscreenWindow.lastIpcObject : null
-    var fullscreenInternal = fullscreenIpc ? Number(fullscreenIpc["fullscreen"] || 0) : 0
-    var fullscreenClient = fullscreenIpc ? Number(fullscreenIpc["fullscreenClient"] || 0) : 0
-    var transferAddress = fullscreenAddress || activeAddress
-    var transferInternal = fullscreenAddress ? fullscreenInternal : activeInternalFullscreen
-    var transferClient = fullscreenAddress ? fullscreenClient : activeClientFullscreen
 
     // Workspace switching deliberately ignores focus requests underneath a
     // fullscreen window. An explicit click on an app icon is different: the
-    // user is asking for that app. Transfer the current fullscreen mode to
-    // the clicked target before focusing it, so tiled-fullscreen workspaces
-    // stay tiled-fullscreen instead of dropping back into the layout.
-    if (transferAddress !== targetAddress && (transferInternal > 0 || transferClient > 0)) {
+    // user is asking for that app. The helper queries Hyprland live, transfers
+    // any fullscreen mode to the clicked target, and then focuses it. Keeping
+    // that IPC snapshot outside Quickshell avoids stale toplevel geometry/state
+    // during the transition.
+    if (activeAddress !== targetAddress) {
       if (!root.bar || !address) return
-      var hex = String(address).replace(/^0x/i, "")
-      var sourceHex = String(transferAddress).replace(/^0x/i, "")
-      var targetState = transferClient === 2
-        ? "hl.dsp.window.fullscreen_state({ internal = 0, client = 2, window = \"address:0x" + hex + "\" })"
-        : "hl.dsp.window.fullscreen_state({ internal = 1, client = 1, window = \"address:0x" + hex + "\" })"
-      var clearState = "hl.dsp.window.fullscreen_state({ internal = 0, client = 0, window = \"address:0x" + sourceHex + "\" })"
-      root.bar.run("hyprctl dispatch " + Util.shellQuote(clearState)
-        + " && hyprctl dispatch " + Util.shellQuote(targetState)
-        + " && hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ window = \"address:0x" + hex + "\" })"))
+      root.runFocusHelper(address)
       return
     }
 
@@ -252,11 +259,13 @@ BarWidget {
   readonly property int maxUnreadShown: 99
   readonly property string slackStatePath: Quickshell.env("HOME") + "/.config/Slack/storage/root-state.json"
   property var slackState: null
+  property var gmailUnreadByAddress: ({})
 
   // Slack keeps its app-level unread/mention state in the same JSON file it
   // uses for the tray badge. Watching that file gives the workspace icon the
   // same signal without scraping window titles or trying to count channels.
   FileView {
+    id: slackStateFile
     path: root.slackStatePath
     watchChanges: true
     printErrors: false
@@ -280,6 +289,13 @@ BarWidget {
 
   function slackHasUnread() {
     return root.slackUnreadCount() > 0
+  }
+
+  function slackTitleUnreadCount(toplevel) {
+    var title = root.windowTitle(toplevel)
+    var match = title.match(/(\d+)\s+new\s+items?/i)
+    if (match) return Number(match[1]) || 0
+    return /new\s+items?|new\s+messages?|unread/i.test(title) ? 1 : -1
   }
 
   function slackUnreadCount() {
@@ -320,6 +336,28 @@ BarWidget {
 
     var count = parseInt(match[1], 10)
     return isFinite(count) && count > 0 ? count : 0
+  }
+
+  function gmailUnreadForWindow(toplevel, title) {
+    var address = String(toplevel && toplevel.address || "")
+    var head = String(title || "").split(" - ")[0]
+    var inInbox = /\binbox\b/i.test(head)
+
+    // Gmail omits the count while an individual message is open. Preserve
+    // the last inbox-reported value until Gmail shows the inbox again.
+    if (inInbox && address) {
+      var count = root.gmailUnreadCount(title)
+      if (root.gmailUnreadByAddress[address] !== count) Qt.callLater(function() {
+        var updated = Object.assign({}, root.gmailUnreadByAddress)
+        updated[address] = count
+        root.gmailUnreadByAddress = updated
+      })
+      return count
+    }
+
+    if (address && root.gmailUnreadByAddress[address] !== undefined)
+      return Number(root.gmailUnreadByAddress[address]) || 0
+    return root.gmailUnreadCount(title)
   }
 
   // "(2) Inbox - jwage@traderspost.io - traderspost.io Mail". The address is
@@ -414,7 +452,11 @@ BarWidget {
         address: String(toplevel["address"] || ""),
         position: root.windowPosition(toplevel),
         order: i,
-        unread: appId === "slack" ? root.slackUnreadCount() : 0,
+        unread: appId === "slack"
+          ? (root.slackTitleUnreadCount(toplevel) >= 0
+            ? root.slackTitleUnreadCount(toplevel)
+            : root.slackUnreadCount())
+          : 0,
         accounts: []
       })
     }
@@ -437,7 +479,7 @@ BarWidget {
     for (var i = 0; i < windows.length; i++) {
       var toplevel = windows[i]
       var title = root.windowTitle(toplevel)
-      var unread = root.gmailUnreadCount(title)
+      var unread = root.gmailUnreadForWindow(toplevel, title)
       total += unread
 
       accounts.push({
@@ -517,6 +559,13 @@ BarWidget {
   function windowIconSource(appId, address) {
     var name = String(appId || "").trim()
     if (!name) return Quickshell.iconPath("application-x-executable", true)
+
+    // Reuse Slack's status-notifier icon. Slack updates this icon immediately
+    // when its unread state changes, including the app-provided badge.
+    if (name === "slack") {
+      var slackIcon = root.slackTrayIconSource()
+      if (slackIcon.length > 0) return slackIcon
+    }
 
     if (name === "org.omarchy.agent") {
       // Deferred: resolveAgentForWindow mutates reactive state (the probe
@@ -647,8 +696,11 @@ BarWidget {
               required property int index
               readonly property var entry: workspaceButton.entries[index] || null
               readonly property bool isGmail: entry !== null && entry.gmail === true
+              readonly property bool isSlack: entry !== null && entry.appId === "slack"
               readonly property int unreadCount: entry !== null ? entry.unread : 0
-              readonly property bool hasUnreadIndicator: unreadCount > 0
+              // Slack's status-notifier icon already carries its live unread
+              // indicator; use that same icon rather than a second stale badge.
+              readonly property bool hasUnreadIndicator: unreadCount > 0 && !isSlack
               // Bar.showTooltip only accepts a target that reports itself
               // hovered, so the flag has to live on the item being pointed at.
               property bool tooltipHovered: false

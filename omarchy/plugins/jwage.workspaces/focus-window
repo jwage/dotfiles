@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+
+# Focus a workspace-bar target while preserving the workspace's fullscreen
+# presentation mode. Quickshell's toplevel cache can briefly lag Hyprland
+# during focus changes, so this deliberately asks Hyprland for the live state.
+set -euo pipefail
+
+target=${1:?window address required}
+target=${target#0x}
+target="0x${target}"
+
+clients=$(hyprctl clients -j)
+workspace=$(jq -r --arg target "$target" '.[] | select(.address == $target) | .workspace.id' <<<"$clients")
+
+if [[ -z "$workspace" || "$workspace" == "null" ]]; then
+  exit 0
+fi
+
+source=$(jq -r --arg target "$target" --argjson workspace "$workspace" '
+  first(.[]
+    | select(.workspace.id == $workspace and .address != $target)
+    | select((.fullscreenClient // 0) > 0 or (.fullscreen // 0) > 0)
+    | [.address, (.fullscreen // 0), (.fullscreenClient // 0)]
+    | @tsv
+  ) // ""' <<<"$clients")
+
+if [[ -n "$source" ]]; then
+  IFS=$'\t' read -r source_address source_internal source_client <<<"$source"
+  if [[ "$source_client" == "2" ]]; then
+    hyprctl dispatch "hl.dsp.window.fullscreen_state({ internal = 0, client = 2, window = \"address:${target}\" })" >/dev/null
+  else
+    hyprctl dispatch "hl.dsp.window.fullscreen_state({ internal = 1, client = 1, window = \"address:${target}\" })" >/dev/null
+  fi
+
+  hyprctl dispatch "hl.dsp.window.fullscreen_state({ internal = 0, client = 0, window = \"address:${source_address}\" })" >/dev/null
+  hyprctl dispatch "hl.dsp.focus({ window = \"address:${target}\" })" >/dev/null
+else
+  hyprctl dispatch "hl.dsp.focus({ window = \"address:${target}\" })" >/dev/null
+fi
