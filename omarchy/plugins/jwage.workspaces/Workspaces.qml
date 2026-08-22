@@ -250,6 +250,38 @@ BarWidget {
     return { x: isFinite(x) ? x : 0, y: isFinite(y) ? y : 0 }
   }
 
+  // Quickshell refreshes its toplevel list the instant Hyprland reports a
+  // window opening or closing -- which is *before* Hyprland has finished
+  // re-tiling whatever is left. The geometry the sort reads is therefore the
+  // layout mid-rearrange, and the icon order silently drifts out of step with
+  // the screen until something else happens to force a refresh. Asking again
+  // once the dust has settled is what keeps the two in sync; the timer
+  // restarts per event, so a burst collapses into one extra round trip.
+  //
+  // Swapping two windows within a workspace emits no Hyprland event at all,
+  // so that one case cannot be caught directly -- listening to activewindow
+  // is what makes it self-correct on the next focus change instead of
+  // staying wrong.
+  readonly property var geometryEvents: [
+    "openwindow", "closewindow", "movewindow", "movewindowv2",
+    "changefloatingmode", "fullscreen", "activewindow"
+  ]
+
+  Timer {
+    id: geometrySettleTimer
+    interval: 150
+    repeat: false
+    onTriggered: Hyprland.refreshToplevels()
+  }
+
+  Connections {
+    target: Hyprland
+
+    function onRawEvent(event) {
+      if (root.geometryEvents.indexOf(event.name) !== -1) geometrySettleTimer.restart()
+    }
+  }
+
   // Hyprland hands addresses back with and without the 0x prefix depending
   // on which side of the IPC they came from.
   function normalizedAddress(value) {
@@ -512,6 +544,48 @@ BarWidget {
               // Bar.showTooltip only accepts a target that reports itself
               // hovered, so the flag has to live on the item being pointed at.
               property bool tooltipHovered: false
+              property var registeredBar: null
+
+              // Every ModuleSlot is covered by the bar's own drag-to-reorder
+              // MouseArea, which sits above module content and swallows the
+              // press, then re-dispatches it to whichever *registered* click
+              // target contains the point (Bar.pressModuleClickTarget). A
+              // MouseArea declared in here therefore never sees a click at
+              // all -- which is why clicking an icon used to do nothing but
+              // switch workspace: the only registered target under the
+              // pointer was the workspace button wrapping it. Registering
+              // each icon puts it in that same lookup.
+              //
+              // Hover is unaffected and still arrives here directly, which is
+              // what the tooltip below rides on.
+              function triggerPress(button) {
+                if (root.bar) root.bar.hideTooltip(windowEntry)
+                if (button !== Qt.LeftButton || !windowEntry.entry) return
+
+                if (windowEntry.isGmail) root.focusGmail(windowEntry.entry)
+                else root.focusWindow(windowEntry.entry.address)
+              }
+
+              // The lookup scans registrations newest-first, so the last one
+              // in wins the point -- and the workspace button re-registers
+              // itself whenever the bar is injected into it, which happens
+              // after these delegates have been built. Re-registering on that
+              // same signal (deferred, so it lands after the button's own
+              // handler) and again on hover keeps the icon ahead of the
+              // button it sits inside.
+              function syncClickRegistration() {
+                if (registeredBar && registeredBar.unregisterClickTarget) registeredBar.unregisterClickTarget(windowEntry)
+                registeredBar = root.bar
+                if (registeredBar && registeredBar.registerClickTarget) registeredBar.registerClickTarget(windowEntry)
+              }
+
+              Component.onCompleted: syncClickRegistration()
+              Component.onDestruction: if (registeredBar && registeredBar.unregisterClickTarget) registeredBar.unregisterClickTarget(windowEntry)
+
+              Connections {
+                target: root
+                function onBarChanged() { Qt.callLater(windowEntry.syncClickRegistration) }
+              }
 
               anchors.verticalCenter: parent.verticalCenter
               implicitWidth: windowIcon.width + (unreadLabel.visible ? unreadLabel.anchors.leftMargin + unreadLabel.implicitWidth : 0)
@@ -544,24 +618,19 @@ BarWidget {
                 font.pixelSize: Style.font.bodySmall
               }
 
+              // Hover only. The click itself arrives through triggerPress
+              // above, since the bar intercepts presses before they reach
+              // here; this exists to drive the tooltip and to keep the icon's
+              // registration ahead of the workspace button's.
               MouseArea {
                 id: entryMouse
                 anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                // Only the merged Gmail icon has anything to explain; leaving
-                // hover off elsewhere keeps every other icon exactly as it was.
-                hoverEnabled: windowEntry.isGmail
-
-                onClicked: function(mouse) {
-                  mouse.accepted = true
-                  if (!windowEntry.entry) return
-                  if (windowEntry.isGmail) root.focusGmail(windowEntry.entry)
-                  else root.focusWindow(windowEntry.entry.address)
-                }
+                hoverEnabled: true
 
                 onEntered: {
+                  windowEntry.syncClickRegistration()
                   windowEntry.tooltipHovered = true
-                  if (root.bar) root.bar.showTooltip(windowEntry, root.gmailTooltip(windowEntry.entry))
+                  if (windowEntry.isGmail && root.bar) root.bar.showTooltip(windowEntry, root.gmailTooltip(windowEntry.entry))
                 }
 
                 onExited: {
