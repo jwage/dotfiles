@@ -12,7 +12,7 @@
 # replaced.
 #
 # Shared files (Cursor, git, gh, mise, ssh, Claude, shell env, zsh) install on
-# both macOS and Linux. Hyprland / Omarchy / XCompose / bashrc only install
+# both macOS and Linux. Hyprland / Omarchy / bashrc only install
 # on Linux (bash is kept there as a fallback for non-interactive/bash-specific
 # tooling; zsh is the default login shell on both machines).
 
@@ -97,8 +97,8 @@ LINUX_LINKS=(
   "bluetooth-hid-reconnect/reconnect.sh:$HOME/.local/bin/bluetooth-hid-reconnect"
   "bluetooth-hid-reconnect/bluetooth-hid-reconnect.service:$HOME/.config/systemd/user/bluetooth-hid-reconnect.service"
   "bash/bashrc:$HOME/.bashrc"
-  "XCompose:$HOME/.XCompose"
   "environment.d/ssh-agent.conf:$HOME/.config/environment.d/ssh-agent.conf"
+  "environment.d/10-omarchy-fcitx.conf:$HOME/.config/environment.d/10-omarchy-fcitx.conf"
 )
 
 for entry in "${SHARED_LINKS[@]}"; do
@@ -106,7 +106,7 @@ for entry in "${SHARED_LINKS[@]}"; do
 done
 
 if [[ "$OS" == "Darwin" ]]; then
-  echo "skip    Linux-only Hyprland/Omarchy/bashrc/XCompose"
+  echo "skip    Linux-only Hyprland/Omarchy/bashrc"
   # Same TradersPost wallpaper as the Omarchy theme -- PNG only; colors.toml
   # is Hyprland/Omarchy-specific and stays Linux-only above.
   MAC_WALLPAPER="$HOME/Pictures/Wallpapers/traderspost.png"
@@ -127,6 +127,16 @@ else
   # entirely -- which is the difference between the Gmail app windows showing
   # their real icon in the bar and falling back to the generic executable
   # glyph. Cheap and idempotent, so just always refresh it.
+  # fcitx5 exists on this machine only to expand ~/.XCompose sequences, which
+  # were Omarchy installer output rather than anything anyone wrote, and are
+  # now gone -- so the service is dead weight and its virtual keyboard shows
+  # up in `hyprctl devices` reporting a keymap error. Masked rather than
+  # disabled so an Omarchy update cannot quietly re-enable it. Idempotent.
+  if command -v systemctl >/dev/null; then
+    systemctl --user mask --now omarchy-fcitx5.service &>/dev/null || true
+    echo "masked  omarchy-fcitx5.service"
+  fi
+
   if command -v gtk-update-icon-cache >/dev/null; then
     gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
     echo "cached  $HOME/.local/share/icons/hicolor"
@@ -166,6 +176,7 @@ if [[ "$OS" != "Darwin" ]]; then
     "etc/modprobe.d/hid_apple.conf:/etc/modprobe.d/hid_apple.conf" \
     "etc/modprobe.d/hid_magicmouse.conf:/etc/modprobe.d/hid_magicmouse.conf" \
     "etc/udev/rules.d/99-uinput.rules:/etc/udev/rules.d/99-uinput.rules" \
+    "etc/modules-load.d/uinput.conf:/etc/modules-load.d/uinput.conf" \
     "etc/udev/rules.d/70-magic-mouse.rules:/etc/udev/rules.d/70-magic-mouse.rules"
   do
     src="$REPO_DIR/${entry%%:*}"

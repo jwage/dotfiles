@@ -10,7 +10,7 @@ repo** (`realpath <path>` starts with `$HOME/Repositories/dotfiles`).
 If it is, commit (and push) the change there once you've confirmed the
 change works — don't leave the dotfiles repo behind live config edits.
 
-`install.sh` skips Hyprland/Omarchy/bashrc/XCompose on macOS. Shared files
+`install.sh` skips Hyprland/Omarchy/bashrc on macOS. Shared files
 (including `zsh/zshrc`) install on both OS. Do not add a Linux-only path
 to the shared link list.
 
