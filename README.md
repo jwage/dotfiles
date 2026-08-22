@@ -24,6 +24,7 @@ Shared (macOS + Linux):
 | `cursor/keybindings.json` | Cursor keybindings: agent/sidebar chords (`cmd` + `ctrl`) plus Linux `Ctrl+C` copies a terminal selection |
 | `cursor/extensions.txt` | Cursor extension IDs (`install.sh` installs them; UI names are in comments — Twig is `whatwedo.twig`) |
 | `claude/CLAUDE.md` | Global Claude Code instructions (incl. keeping this repo in sync) |
+| `claude/settings.json` | Claude Code settings: model, dark theme, autoupdater off |
 | `AGENTS.md` | Cursor/agent entry: PHP setup points at `php/README.md` |
 | `git/config` | Git aliases and behavior (not credentials — see below) |
 | `gh/config.yml` | GitHub CLI preferences |
@@ -42,6 +43,11 @@ Linux / Omarchy only:
 | `php/linux/` | Arch-only `extension=` enables (CLI); macOS never scans this dir |
 | `hypr/*.lua` | Hyprland: keybinds, input, per-app workspaces, autostart, look & feel, monitors (output names/scale in `monitors.lua` are specific to this machine's laptop panel + external display) |
 | `omarchy/shell.json` | Bar widget layout |
+| `alacritty/`, `foot/`, `ghostty/`, `kitty/` | Terminal configs. Only the delta from Omarchy's stock skel: font size 11 rather than 9, everything else untouched. All four are pinned to the same size so whichever terminal opens looks the same — `omarchy agent` uses foot, so that one is the size that actually gets read |
+| `chrome/chrome-flags.conf` | Chrome flags. `--disable-features=TouchpadOverscrollHistoryNavigation` is the important one: `magic-mouse-gestures/` already turns a two-finger swipe into `Alt+Left`/`Alt+Right`, and leaving Chrome's own overscroll navigation on makes one flick go back twice. Stock Omarchy *enables* that feature, so this has to be tracked or the gesture daemon double-fires. Plus `--enable-features=ScrollableTabStrip` |
+| `xdg/mimeapps.list` | Default apps: Chrome for http/https/html, HEY for `mailto:`. Omarchy's stock file points at Nautilus/imv/Evince instead. Apps rewrite this when they register a handler, so expect it to go dirty on its own now and then |
+| `autostart/` | XDG autostart entries set to `Hidden=true` to stop three packaged services launching at login: fcitx5 (removed here — see `environment.d/10-omarchy-fcitx.conf`; masking the systemd unit is not enough, the fcitx5 package ships its own autostart file), limine-snapper-notify, and the CUPS print applet |
+| `bluetooth-hid-reconnect/` | Reconnects trusted classic-Bluetooth HID peripherals (the Apple Keyboard, the Magic Mouse) once the graphical session starts. BlueZ's own auto-reconnect only covers audio-profile UUIDs, not HID, so without this they sit paired-but-disconnected after every boot until something is clicked by hand |
 | `omarchy/defaults/agent` | Default coding agent |
 | `omarchy/plugins/jwage.workspaces/` | Custom bar widget: per-workspace app icons + window switching. Icons are ordered by where the windows actually sit on screen (top row first, then left to right). Gmail is special-cased: both accounts' app windows fold into one mail icon showing the combined unread count, read live from each window's own title (no Gmail API, no polling) — hover for the per-account split, click to jump to whichever inbox has mail |
 | `webapps/` | Gmail as two Chrome app windows, one per account, plus the Google Mail icon the bar resolves through `StartupWMClass`. They have to be app windows rather than tabs: Hyprland only exposes a browser window's *active tab* title, so tabbed accounts can never report an unread count. `hypr/autostart.lua` launches both onto workspace 1 with the other comms apps |
@@ -80,11 +86,21 @@ macOS only:
 - macOS `~/.gitconfig` (git-lfs, this machine's `user.email`, extra
   `safe.directory` entries). Portable aliases live in the tracked file;
   overlapping keys in `~/.gitconfig` win
-- Terminal emulator configs (alacritty/foot/ghostty/kitty), tmux, btop —
-  verified identical to Omarchy's stock skel, so a fresh install already
-  gives you these. Starship's *binary* is the same; the prompt *config* is
-  tracked in `starship/starship.toml` so this Mac does not keep Oh My Zsh's
+- tmux and btop — verified identical to Omarchy's stock skel, so a fresh
+  install already gives you these. (btop rewrites its own file on version
+  bumps, so it drifts from the skel without anyone editing it; the terminal
+  configs *are* tracked, but only for the font size — see the table above.)
+  Starship's *binary* is the same; the prompt *config* is tracked in
+  `starship/starship.toml` so this Mac does not keep Oh My Zsh's
   `robbyrussell` theme.
+- Anything Omarchy generates for itself and would regenerate on a fresh
+  install: `omarchy/branding/*` (copied from the packaged `icon.txt`/
+  `logo.txt`), `omarchy/hooks/post-update.d/*.hook`, `omarchy/extensions/
+  omarchy-menu.jsonc`, `hypr/hyprsunset.conf`, `hypr/xdph.conf`, the LazyVim
+  tree in `~/.config/nvim`, the PipeWire/WirePlumber drop-ins, the
+  `~/.local/share/applications` webapps other than the two Gmail ones, and
+  `/etc/modprobe.d/iwlwifi-disable-eht.conf` (Omarchy's own Intel BE200
+  WiFi-7 fix). All diffed against the packaged copies, all identical.
 - Cursor history, workspace storage, MCP secrets, crash-reporter IDs, and
   machine-local PHP binary paths (`/usr/local/bin/php` vs `/usr/bin/php`) and
   `php/local/*.ini` (PIE-built `pg_query.so`) — binaries stay off the tracked
@@ -195,7 +211,7 @@ machine, after installing `python` and `wtype` from `pacman`:
 
 ```sh
 systemctl --user daemon-reload
-systemctl --user enable --now magicmouse-scroll magic-mouse-gestures
+systemctl --user enable --now magicmouse-scroll magic-mouse-gestures bluetooth-hid-reconnect
 ```
 
 `etc/udev/rules.d/70-magic-mouse.rules` is what lets the gesture daemon
