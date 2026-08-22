@@ -188,6 +188,41 @@ BarWidget {
     return String(toplevel.wayland.appId || "")
   }
 
+  // Gmail keeps its unread inbox count in its own document title, which the
+  // compositor hands us verbatim as the toplevel title and re-emits on every
+  // change — so the count below is event-driven off the same toplevel the
+  // icon already comes from: no polling, no Gmail API, no extra widget.
+  //
+  // Caveat worth knowing: a plain browser window only ever reports its
+  // *active tab's* title, so a count appears there only while Gmail is the
+  // tab in front. A dedicated Gmail app/PWA window always reports its own
+  // title, so it is the reliable home for this.
+  readonly property var browserTitleSuffix: /\s-\s(?:Google Chrome|Chromium|Brave|Microsoft Edge|Vivaldi|Helium)$/
+  readonly property int maxUnreadShown: 99
+
+  function windowTitle(toplevel) {
+    if (!toplevel || !toplevel.wayland) return ""
+    return String(toplevel.wayland.title || "")
+  }
+
+  // Accepts both title shapes Gmail has shipped — "(2) Inbox - you@x - Gmail"
+  // and "Inbox (2) - you@x - Gmail". Only the first " - " segment is read,
+  // and only at its two edges, so an open message whose *subject* contains
+  // parentheses ("Re: renewal (2 seats) - you@x - Gmail") cannot be misread
+  // as an unread count. Anything that is not a Gmail title, or is one with no
+  // count in it, returns 0 and renders nothing.
+  function gmailUnreadCount(title) {
+    var text = String(title || "").replace(root.browserTitleSuffix, "")
+    if (!/\s-\sGmail$/.test(text)) return 0
+
+    var head = text.split(" - ")[0]
+    var match = /^\((\d{1,6})\+?\)/.exec(head) || /^Inbox \((\d{1,6})\+?\)$/.exec(head)
+    if (!match) return 0
+
+    var count = parseInt(match[1], 10)
+    return isFinite(count) && count > 0 ? count : 0
+  }
+
   // App icons come from the window's app id. A window's app id and its
   // .desktop file's Icon= often differ (e.g. appId "cursor" but
   // Icon=co.anysphere.cursor, appId "signal" but Icon=signal-desktop), so
@@ -313,25 +348,53 @@ BarWidget {
             // detected for property source" warnings).
             model: workspaceButton.showIcons ? workspaceButton.toplevels.length : 0
 
-            Image {
-              id: windowIcon
+            // A plain Item rather than a Row: the click target has to cover
+            // the icon *and* its count, and a MouseArea inside a positioner
+            // would be laid out as another cell of it instead of overlaying
+            // one. Collapses to exactly the icon's width whenever there is no
+            // count to show, so every window that isn't Gmail is untouched.
+            Item {
+              id: windowEntry
               required property int index
               readonly property var toplevel: workspaceButton.toplevels[index]
+              readonly property int unreadCount: root.gmailUnreadCount(root.windowTitle(toplevel))
 
               anchors.verticalCenter: parent.verticalCenter
-              width: root.iconSize
-              height: root.iconSize
-              fillMode: Image.PreserveAspectFit
-              sourceSize.width: width * Screen.devicePixelRatio
-              sourceSize.height: height * Screen.devicePixelRatio
-              source: root.windowIconSource(root.windowAppId(toplevel), toplevel ? toplevel["address"] : "")
+              implicitWidth: windowIcon.width + (unreadLabel.visible ? unreadLabel.anchors.leftMargin + unreadLabel.implicitWidth : 0)
+              implicitHeight: root.iconSize
+
+              Image {
+                id: windowIcon
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                width: root.iconSize
+                height: root.iconSize
+                fillMode: Image.PreserveAspectFit
+                sourceSize.width: width * Screen.devicePixelRatio
+                sourceSize.height: height * Screen.devicePixelRatio
+                source: root.windowIconSource(root.windowAppId(windowEntry.toplevel), windowEntry.toplevel ? windowEntry.toplevel["address"] : "")
+              }
+
+              // Clamped so a runaway inbox can never stretch the workspace
+              // button; zero unread hides it entirely, leaving just the icon.
+              Text {
+                id: unreadLabel
+                anchors.left: windowIcon.right
+                anchors.leftMargin: Style.space(2)
+                anchors.verticalCenter: parent.verticalCenter
+                visible: windowEntry.unreadCount > 0
+                text: windowEntry.unreadCount > root.maxUnreadShown ? (root.maxUnreadShown + "+") : String(windowEntry.unreadCount)
+                color: root.bar ? root.bar.barForeground : Color.foreground
+                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                font.pixelSize: Style.font.bodySmall
+              }
 
               MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
                 onClicked: function(mouse) {
                   mouse.accepted = true
-                  if (windowIcon.toplevel) root.focusWindow(windowIcon.toplevel["address"])
+                  if (windowEntry.toplevel) root.focusWindow(windowEntry.toplevel["address"])
                 }
               }
             }
