@@ -687,7 +687,7 @@ BarWidget {
     anchors.fill: parent
     anchors.rightMargin: root.trailingGap
     columns: root.vertical ? 1 : root.workspaceIds().length
-    columnSpacing: root.vertical ? 0 : Style.space(1)
+    columnSpacing: root.vertical ? 0 : Style.space(5)
     rowSpacing: root.vertical ? Style.space(2) : 0
 
     Repeater {
@@ -708,6 +708,7 @@ BarWidget {
         // Windows folded into what the strip actually draws: Gmail collapsed
         // to one entry, everything kept in stable compositor order.
         readonly property var entries: root.buildEntries(toplevels)
+        readonly property bool isFirstWorkspace: modelData === root.workspaceIds()[0]
 
         bar: root.bar
         text: numberText
@@ -719,13 +720,30 @@ BarWidget {
         fixedHeight: root.barSize
         onPressed: function() { root.focusWorkspace(modelData) }
 
+        // Separates one workspace from the next now that the focused app's
+        // own underline (below) is what marks the active workspace -- the
+        // divider is just structure, not a focus indicator, so it doesn't
+        // change color or hide itself when focused.
+        Rectangle {
+          anchors.left: parent.left
+          anchors.leftMargin: -Style.space(2)
+          anchors.verticalCenter: parent.verticalCenter
+          width: 1
+          height: Style.space(16)
+          color: root.bar ? root.bar.barForeground : Color.foreground
+          opacity: 0.3
+          visible: !root.vertical && !workspaceButton.isFirstWorkspace
+        }
+
         Row {
           id: content
           anchors.centerIn: parent
           spacing: Style.space(3)
 
-          // The current workspace keeps its number but gets a pill behind
-          // it, rather than being replaced by a generic marker glyph.
+          // Empty workspaces have no app icon to show focus on, so they keep
+          // the number -- with the same accent pill as before when focused.
+          // An occupied workspace drops both: the focused app's own
+          // underline (below) already marks which one is active.
           Rectangle {
             id: numberBadge
             anchors.verticalCenter: parent.verticalCenter
@@ -733,6 +751,7 @@ BarWidget {
             height: Style.space(16)
             radius: height / 2
             color: workspaceButton.focused ? Color.accent : "transparent"
+            visible: !workspaceButton.showIcons
 
             Text {
               id: numberLabel
