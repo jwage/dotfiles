@@ -6,7 +6,7 @@
   },
   "bar": {
     "position": "top",
-    "transparent": true,
+    "transparent": false,
     "centerAnchor": "jwage.clock",
     "layout": {
       "left": [
@@ -43,7 +43,7 @@
           "pollSeconds": 60
         },
         {
-          "id": "jwage.tray",
+          "id": "omarchy.tray",
           "pinned": [
             "1Password_status_icon_1"
           ],
