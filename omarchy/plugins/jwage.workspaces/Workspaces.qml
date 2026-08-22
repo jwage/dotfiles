@@ -713,7 +713,6 @@ BarWidget {
         bar: root.bar
         text: numberText
         labelVisible: false
-        opacity: occupied || focused ? 1 : 0.5
         horizontalMargin: 6
         verticalPadding: 6
         fixedWidth: root.vertical ? root.barSize : content.implicitWidth + Style.space(12)
@@ -723,7 +722,9 @@ BarWidget {
         // Separates one workspace from the next now that the focused app's
         // own underline (below) is what marks the active workspace -- the
         // divider is just structure, not a focus indicator, so it doesn't
-        // change color or hide itself when focused.
+        // change color or hide itself when focused, and it sits outside
+        // dimmableContent below so an empty, unfocused neighbor doesn't
+        // fade it too.
         Rectangle {
           anchors.left: parent.left
           anchors.leftMargin: -Style.space(2)
@@ -735,23 +736,28 @@ BarWidget {
           visible: !root.vertical && !workspaceButton.isFirstWorkspace
         }
 
-        Row {
-          id: content
-          anchors.centerIn: parent
-          spacing: Style.space(3)
+        Item {
+          id: dimmableContent
+          anchors.fill: parent
+          opacity: workspaceButton.occupied || workspaceButton.focused ? 1 : 0.5
 
-          // Empty workspaces have no app icon to show focus on, so they keep
-          // the number -- with the same accent pill as before when focused.
-          // An occupied workspace drops both: the focused app's own
-          // underline (below) already marks which one is active.
-          Rectangle {
-            id: numberBadge
-            anchors.verticalCenter: parent.verticalCenter
-            width: Math.max(height, numberLabel.implicitWidth + Style.space(6))
-            height: Style.space(16)
-            radius: height / 2
-            color: workspaceButton.focused ? Color.accent : "transparent"
-            visible: !workspaceButton.showIcons
+          Row {
+            id: content
+            anchors.centerIn: parent
+            spacing: Style.space(3)
+
+            // Empty workspaces have no app icon to show focus on, so they keep
+            // the number -- with the same accent pill as before when focused.
+            // An occupied workspace drops both: the focused app's own
+            // underline (below) already marks which one is active.
+            Rectangle {
+              id: numberBadge
+              anchors.verticalCenter: parent.verticalCenter
+              width: Math.max(height, numberLabel.implicitWidth + Style.space(6))
+              height: Style.space(16)
+              radius: height / 2
+              color: workspaceButton.focused ? Color.accent : "transparent"
+              visible: !workspaceButton.showIcons
 
             Text {
               id: numberLabel
@@ -919,6 +925,7 @@ BarWidget {
               }
             }
           }
+        }
         }
       }
     }
