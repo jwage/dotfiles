@@ -215,9 +215,54 @@ BarWidget {
   // be read — which is exactly why they were split out.
   readonly property string gmailAppIdPrefix: "chrome-mail.google.com__"
   readonly property int maxUnreadShown: 99
+  readonly property string slackStatePath: Quickshell.env("HOME") + "/.config/Slack/storage/root-state.json"
+  property var slackState: null
+
+  // Slack keeps its app-level unread/mention state in the same JSON file it
+  // uses for the tray badge. Watching that file gives the workspace icon the
+  // same signal without scraping window titles or trying to count channels.
+  FileView {
+    path: root.slackStatePath
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.parseSlackState(text())
+    onFileChanged: reload()
+    onLoadFailed: root.slackState = null
+  }
 
   function isGmailWindow(appId) {
     return String(appId || "").indexOf(root.gmailAppIdPrefix) === 0
+  }
+
+  function parseSlackState(content) {
+    try {
+      var parsed = JSON.parse(String(content || ""))
+      root.slackState = parsed && typeof parsed === "object" ? parsed : null
+    } catch (e) {
+      root.slackState = null
+    }
+  }
+
+  function slackHasUnread() {
+    return root.slackUnreadCount() > 0
+  }
+
+  function slackUnreadCount() {
+    var teams = root.slackState && root.slackState.webapp ? root.slackState.webapp.teams : null
+    if (!teams) return 0
+
+    var total = 0
+
+    var ids = Object.keys(teams)
+    for (var i = 0; i < ids.length; i++) {
+      var unreads = teams[ids[i]] ? teams[ids[i]].unreads : null
+      if (!unreads) continue
+      // `unreads` is Slack's app badge total; highlights is a useful fallback
+      // for workspaces where Slack reports mentions separately.
+      total += Math.max(Number(unreads.unreads) || 0, Number(unreads.unreadHighlights) || 0)
+    }
+
+    return total
   }
 
   function windowTitle(toplevel) {
@@ -334,7 +379,7 @@ BarWidget {
         address: String(toplevel["address"] || ""),
         position: root.windowPosition(toplevel),
         order: i,
-        unread: 0,
+        unread: appId === "slack" ? root.slackUnreadCount() : 0,
         accounts: []
       })
     }
@@ -568,6 +613,7 @@ BarWidget {
               readonly property var entry: workspaceButton.entries[index] || null
               readonly property bool isGmail: entry !== null && entry.gmail === true
               readonly property int unreadCount: entry !== null ? entry.unread : 0
+              readonly property bool hasUnreadIndicator: unreadCount > 0
               // Bar.showTooltip only accepts a target that reports itself
               // hovered, so the flag has to live on the item being pointed at.
               property bool tooltipHovered: false
@@ -615,7 +661,9 @@ BarWidget {
               }
 
               anchors.verticalCenter: parent.verticalCenter
-              implicitWidth: windowIcon.width + (unreadLabel.visible ? unreadLabel.anchors.leftMargin + unreadLabel.implicitWidth : 0)
+              // The unread count is an overlay, so it must not widen the icon
+              // slot or push the following app away from its normal spacing.
+              implicitWidth: windowIcon.width
               implicitHeight: root.iconSize
 
               Image {
@@ -631,18 +679,34 @@ BarWidget {
                                               windowEntry.entry ? windowEntry.entry.address : "")
               }
 
-              // Clamped so a runaway inbox can never stretch the workspace
-              // button; zero unread hides it entirely, leaving just the icon.
-              Text {
+              // Familiar notification-badge treatment: the count sits over
+              // the icon's top-right corner, staying circular for one digit
+              // and becoming a compact pill for larger counts. Zero unread
+              // hides it entirely; 100+ is deliberately capped to keep the
+              // badge from becoming a second label.
+              BorderSurface {
                 id: unreadLabel
-                anchors.left: windowIcon.right
-                anchors.leftMargin: Style.space(2)
-                anchors.verticalCenter: parent.verticalCenter
-                visible: windowEntry.unreadCount > 0
-                text: windowEntry.unreadCount > root.maxUnreadShown ? (root.maxUnreadShown + "+") : String(windowEntry.unreadCount)
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.rightMargin: -width * 0.22
+                anchors.topMargin: -height * 0.16
+                visible: windowEntry.hasUnreadIndicator
+                z: 2
+                height: Math.max(12, Math.round(root.iconSize * 0.62))
+                width: Math.max(height, unreadText.implicitWidth + Style.space(4))
+                radius: height / 2
                 color: root.bar ? root.bar.barForeground : Color.foreground
-                font.family: root.bar ? root.bar.fontFamily : Style.font.family
-                font.pixelSize: Style.font.bodySmall
+                borderSpec: Border.flat(Color.accent, 1)
+
+                Text {
+                  id: unreadText
+                  anchors.centerIn: parent
+                  text: windowEntry.unreadCount > root.maxUnreadShown ? (root.maxUnreadShown + "+") : String(windowEntry.unreadCount)
+                  color: Color.accent
+                  font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                  font.pixelSize: Math.max(8, Math.round(parent.height * 0.74))
+                  font.bold: true
+                }
               }
 
               // Hover only. The click itself arrives through triggerPress
