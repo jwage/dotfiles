@@ -3,9 +3,6 @@
 -- Do not let focus-follows-mouse take over from a fullscreen window when the
 -- pointer happens to be over a tiled window during a workspace switch.
 hl.config({
-  misc = {
-    on_focus_under_fullscreen = 0,
-  },
 })
 
 -- https://wiki.hypr.land/Configuring/Basics/Variables/#general
