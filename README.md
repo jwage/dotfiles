@@ -101,10 +101,10 @@ Safe to re-run on either machine. Destinations that aren't already the
 correct symlink are backed up as `<file>.orig` first.
 
 On Linux, `install.sh` will prompt for `sudo` once to install
-`etc/modprobe.d/*.conf` and `etc/udev/rules.d/*` into `/etc` (everything else
-it does needs no elevated privileges).
+`etc/modprobe.d/*.conf`, `etc/udev/rules.d/*` and `etc/modules-load.d/*` into
+`/etc` (everything else it does needs no elevated privileges).
 
-Those four files are **copied, not symlinked**, unlike everything else here,
+Those five files are **copied, not symlinked**, unlike everything else here,
 and it matters. `/home` is its own btrfs subvolume mounted at the Local File
 Systems target, but kmod and udev read their config directories before that,
 so a symlink into `$HOME` is still dangling when they look:
