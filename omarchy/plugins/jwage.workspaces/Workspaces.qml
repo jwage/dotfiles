@@ -79,6 +79,11 @@ BarWidget {
     function onObjectRemovedPre(object, index) {
       var address = object ? object["address"] : ""
       if (!address) return
+      if (root.settledWindowAddresses[address]) {
+        var settled = Object.assign({}, root.settledWindowAddresses)
+        delete settled[address]
+        root.settledWindowAddresses = settled
+      }
       delete root.probingAddresses[address]
       if (root.resolvedAgentByAddress[address] === undefined) return
       var updated = Object.assign({}, root.resolvedAgentByAddress)
@@ -246,6 +251,22 @@ BarWidget {
     return String(toplevel.wayland.appId || "")
   }
 
+  function isTransientWindow(toplevel, appId) {
+    var ipc = toplevel ? toplevel.lastIpcObject : null
+    var title = root.windowTitle(toplevel)
+    // X11 menus from Spotify (and similar toolkits) can arrive before their
+    // class metadata: they have no app id or title and are not real apps.
+    if (!String(appId || "") && !title) return true
+    // Native app menus are separate floating clients; they should not become
+    // extra app icons in the workspace strip. Normal workspace app windows
+    // remain tiled, so this excludes the transient surface without relying
+    // on the menu's inconsistent app-id/class metadata.
+    if (!ipc) return false
+    if (ipc.floating === true) return true
+    var size = ipc.size
+    return Array.isArray(size) && size.length === 2 && size[0] < 600 && size[1] < 500
+  }
+
   // Gmail keeps its unread inbox count in its own document title, which the
   // compositor hands us verbatim and re-emits on every change — so the count
   // is event-driven off the same toplevel the icon already comes from: no
@@ -256,10 +277,30 @@ BarWidget {
   // *active tab's* title, so two accounts living as two tabs can never both
   // be read — which is exactly why they were split out.
   readonly property string gmailAppIdPrefix: "chrome-mail.google.com__"
+  // Explicit left-to-right priority for the workspace app strip. Apps not
+  // listed here retain their stable compositor order after these entries.
+  readonly property var appOrder: ["gmail", "slack", "signal"]
+  readonly property var workspaceAppOrder: ({ "2": ["google-chrome"] })
   readonly property int maxUnreadShown: 99
   readonly property string slackStatePath: Quickshell.env("HOME") + "/.config/Slack/storage/root-state.json"
   property var slackState: null
   property var gmailUnreadByAddress: ({})
+  property int gmailRevision: 0
+  property var settledWindowAddresses: ({})
+  readonly property int windowSettleMs: 180
+
+  function settleWindowLater(address) {
+    if (!address || root.settledWindowAddresses[address]) return
+    var timer = Qt.createQmlObject(
+      'import QtQuick; Timer { interval: ' + root.windowSettleMs + '; running: true; repeat: false }',
+      root, "workspaceWindowSettle")
+    timer.triggered.connect(function() {
+      var updated = Object.assign({}, root.settledWindowAddresses)
+      updated[address] = true
+      root.settledWindowAddresses = updated
+      timer.destroy()
+    })
+  }
 
   // Slack keeps its app-level unread/mention state in the same JSON file it
   // uses for the tray badge. Watching that file gives the workspace icon the
@@ -296,6 +337,20 @@ BarWidget {
     var match = title.match(/(\d+)\s+new\s+items?/i)
     if (match) return Number(match[1]) || 0
     return /new\s+items?|new\s+messages?|unread/i.test(title) ? 1 : -1
+  }
+
+  function signalUnreadCount(toplevel) {
+    var title = root.windowTitle(toplevel)
+    var match = /\((\d{1,6})\)\s*$/.exec(title)
+    return match ? (Number(match[1]) || 0) : 0
+  }
+
+  function unreadCountForWindow(appId, toplevel) {
+    if (appId === "signal") return root.signalUnreadCount(toplevel)
+    if (appId !== "slack") return 0
+
+    var titleCount = root.slackTitleUnreadCount(toplevel)
+    return titleCount >= 0 ? titleCount : root.slackUnreadCount()
   }
 
   function slackUnreadCount() {
@@ -342,10 +397,11 @@ BarWidget {
     var address = String(toplevel && toplevel.address || "")
     var head = String(title || "").split(" - ")[0]
     var inInbox = /\binbox\b/i.test(head)
+    var hasExplicitCount = /^\(\d{1,6}\+?\)/.test(head) || /\(\d{1,6}\+?\)\s*$/.test(head)
 
     // Gmail omits the count while an individual message is open. Preserve
     // the last inbox-reported value until Gmail shows the inbox again.
-    if (inInbox && address) {
+    if ((inInbox || hasExplicitCount) && address) {
       var count = root.gmailUnreadCount(title)
       if (root.gmailUnreadByAddress[address] !== count) Qt.callLater(function() {
         var updated = Object.assign({}, root.gmailUnreadByAddress)
@@ -415,6 +471,7 @@ BarWidget {
 
     function onRawEvent(event) {
       if (root.geometryEvents.indexOf(event.name) !== -1) geometrySettleTimer.restart()
+      if (event.name === "windowtitle" || event.name === "windowtitlev2") root.gmailRevision++
     }
   }
 
@@ -429,7 +486,8 @@ BarWidget {
   // that means "your mail" beats one icon per account. Entries retain the
   // order in which the toplevel collection supplies them, so focusing a
   // window never changes the icon order.
-  function buildEntries(toplevels) {
+  function buildEntries(toplevels, workspaceId) {
+    var gmailRefresh = root.gmailRevision
     var entries = []
     var gmailWindows = []
     var gmailOrder = -1
@@ -437,8 +495,14 @@ BarWidget {
     for (var i = 0; i < toplevels.length; i++) {
       var toplevel = toplevels[i]
       if (!toplevel) continue
+      var address = String(toplevel["address"] || "")
+      if (address && !root.settledWindowAddresses[address]) {
+        root.settleWindowLater(address)
+        continue
+      }
 
       var appId = root.windowAppId(toplevel)
+      if (root.isTransientWindow(toplevel, appId)) continue
       if (root.isGmailWindow(appId)) {
         gmailWindows.push(toplevel)
         if (gmailOrder === -1) gmailOrder = i
@@ -447,16 +511,13 @@ BarWidget {
 
       entries.push({
         gmail: false,
+        workspaceId: workspaceId,
         appId: appId,
         toplevel: toplevel,
         address: String(toplevel["address"] || ""),
         position: root.windowPosition(toplevel),
         order: i,
-        unread: appId === "slack"
-          ? (root.slackTitleUnreadCount(toplevel) >= 0
-            ? root.slackTitleUnreadCount(toplevel)
-            : root.slackUnreadCount())
-          : 0,
+        unread: root.unreadCountForWindow(appId, toplevel),
         accounts: []
       })
     }
@@ -464,6 +525,7 @@ BarWidget {
     if (gmailWindows.length > 0) {
       var gmailEntry = root.buildGmailEntry(gmailWindows)
       gmailEntry.order = gmailOrder
+      gmailEntry.workspaceId = workspaceId
       entries.push(gmailEntry)
     }
 
@@ -513,8 +575,24 @@ BarWidget {
   // The explicit order comes from the toplevel collection, not live window
   // geometry. The address tie-break only handles a defensive missing order.
   function compareEntries(left, right) {
+    var leftKey = root.appOrderKey(left)
+    var rightKey = root.appOrderKey(right)
+    var order = root.workspaceAppOrder[String(left.workspaceId)] || root.appOrder
+    var leftPriority = order.indexOf(leftKey)
+    var rightPriority = order.indexOf(rightKey)
+    if (leftPriority === -1) leftPriority = order.length
+    if (rightPriority === -1) rightPriority = order.length
+    if (leftPriority !== rightPriority) return leftPriority - rightPriority
     if (left.order !== right.order) return left.order - right.order
     return String(left.address).localeCompare(String(right.address))
+  }
+
+  function appOrderKey(entry) {
+    if (entry.gmail) return "gmail"
+    var appId = String(entry.appId || "").toLowerCase()
+    if (appId.indexOf("slack") !== -1) return "slack"
+    if (appId.indexOf("signal") !== -1) return "signal"
+    return appId
   }
 
   function gmailTooltip(entry) {
@@ -639,7 +717,7 @@ BarWidget {
         readonly property bool showIcons: !root.vertical && occupied
         // Windows folded into what the strip actually draws: Gmail collapsed
         // to one entry, everything kept in stable compositor order.
-        readonly property var entries: root.buildEntries(toplevels)
+        readonly property var entries: root.buildEntries(toplevels, modelData)
 
         bar: root.bar
         text: numberText
