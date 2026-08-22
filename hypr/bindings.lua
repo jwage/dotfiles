@@ -36,10 +36,102 @@ hl.unbind("SUPER + SHIFT + TAB")
 hl.unbind("ALT + TAB")
 hl.unbind("ALT + SHIFT + TAB")
 
-o.bind("SUPER + TAB", "Focus on next window", hl.dsp.window.cycle_next())
-o.bind("SUPER + SHIFT + TAB", "Focus on previous window", hl.dsp.window.cycle_next({ next = false }))
-o.bind("SUPER + TAB", "Reveal active window on top", hl.dsp.window.bring_to_top())
-o.bind("SUPER + SHIFT + TAB", "Reveal active window on top", hl.dsp.window.bring_to_top())
+-- Cycle focus the way `cyclenext` does, but grow the incoming window *before*
+-- revealing it.
+--
+-- `cyclenext` hands the workspace's fullscreen/maximized state to whatever it
+-- focuses, so switching apps on a workspace where one app is maximized means
+-- the incoming window changes size from its tile to the full screen. Hyprland
+-- moves focus, raises the window and resizes it in the same frame, but the
+-- client cannot repaint that fast: for the first few frames the compositor
+-- stretches the buffer the app last painted at its small tiled size up to full
+-- screen, and only then does the app re-layout. That is the jump -- the app
+-- appears as a scaled-up copy of its narrow layout, then snaps to its wide one,
+-- responsive breakpoints and all.
+--
+-- Two windows can hold a fullscreen state at the same time, so the resize can
+-- be done while the outgoing window is still covering the screen: maximize the
+-- target, let it repaint out of sight, and only then drop the outgoing window's
+-- maximized state and move focus. Nothing on screen changes until the incoming
+-- window has finished laying out. Same order as the bar's click handler
+-- (~/.config/omarchy/plugins/jwage.workspaces/focus-window), which had to solve
+-- this for icon clicks.
+--
+-- REVEAL_DELAY_MS is how long the incoming app gets to repaint off-screen. It
+-- is dead time before the switch becomes visible, so keep it as low as the apps
+-- allow: too low and the stretched frame leaks back into view, too high and
+-- Super+Tab feels sluggish. Electron/Chromium apps (Slack, Signal, Chrome) are
+-- the slow ones here.
+local REVEAL_DELAY_MS = 80
+
+-- Guard against a second Super+Tab landing between the maximize and the reveal,
+-- which would hand the fullscreen state to a third window and leave two windows
+-- maximized for good.
+local cycle_in_progress = false
+
+local function cycle_window(forward)
+  return function()
+    if cycle_in_progress then
+      return
+    end
+
+    local source = hl.get_active_window()
+    local workspace = source and source.workspace
+    if not workspace then
+      return
+    end
+
+    -- Deliberately unsorted: this is Hyprland's own window order, the same one
+    -- `cyclenext` walks, so the cycle keeps the sequence it had before.
+    local windows = {}
+    local index
+    for _, window in ipairs(hl.get_workspace_windows(workspace.id) or {}) do
+      if window.mapped and not window.hidden then
+        windows[#windows + 1] = window
+        if window.address == source.address then
+          index = #windows
+        end
+      end
+    end
+
+    if not index or #windows < 2 then
+      return
+    end
+
+    local target = windows[((index - 1 + (forward and 1 or -1)) % #windows) + 1]
+    local internal = source.fullscreen or 0
+    local client = source.fullscreen_client or 0
+
+    -- No fullscreen state to hand over means no resize, so nothing to hide.
+    if internal == 0 and client == 0 then
+      hl.dispatch(hl.dsp.focus({ window = "address:" .. target.address }))
+      hl.dispatch(hl.dsp.window.bring_to_top())
+      return
+    end
+
+    cycle_in_progress = true
+
+    hl.dispatch(hl.dsp.window.fullscreen_state({
+      internal = internal,
+      client = client,
+      window = "address:" .. target.address,
+    }))
+
+    hl.timer(function()
+      hl.dispatch(hl.dsp.window.fullscreen_state({
+        internal = 0,
+        client = 0,
+        window = "address:" .. source.address,
+      }))
+      hl.dispatch(hl.dsp.focus({ window = "address:" .. target.address }))
+      hl.dispatch(hl.dsp.window.bring_to_top())
+      cycle_in_progress = false
+    end, { timeout = REVEAL_DELAY_MS, type = "oneshot" })
+  end
+end
+
+o.bind("SUPER + TAB", "Focus on next window", cycle_window(true))
+o.bind("SUPER + SHIFT + TAB", "Focus on previous window", cycle_window(false))
 
 o.bind("ALT + TAB", "Next workspace", hl.dsp.focus({ workspace = "e+1" }))
 o.bind("ALT + SHIFT + TAB", "Previous workspace", hl.dsp.focus({ workspace = "e-1" }))
