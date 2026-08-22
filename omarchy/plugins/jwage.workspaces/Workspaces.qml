@@ -740,7 +740,7 @@ BarWidget {
           width: 1
           height: Style.space(16)
           color: root.bar ? root.bar.barForeground : Color.foreground
-          opacity: 0.3
+          opacity: 0.18
           visible: !root.vertical && !workspaceButton.isFirstWorkspace
         }
 
