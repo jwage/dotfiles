@@ -131,6 +131,13 @@ else
     gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
     echo "cached  $HOME/.local/share/icons/hicolor"
   fi
+
+  # The one component here that is compiled rather than symlinked, so it needs
+  # a build call instead of a LINUX_LINKS entry. It skips itself when
+  # Hyprland's headers are not installed, is safe to re-run, and has to be
+  # re-run after a Hyprland upgrade -- a plugin built against a different
+  # Hyprland ABI refuses to load. See hypr-kinetic-scroll/README.md.
+  "$REPO_DIR/hypr-kinetic-scroll/build.sh"
 fi
 
 # Root-owned system config (kernel module options, udev rules). Linux only

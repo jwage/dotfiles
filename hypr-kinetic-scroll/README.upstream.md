@@ -1,0 +1,169 @@
+# hypr-kinetic-scroll
+
+Hyprland compositor plugin that adds kinetic (inertial) scrolling for touchpads
+at the compositor level, so momentum scrolling works consistently across apps
+(not just in browsers).
+
+Prebuilt binaries are tied to a specific Hyprland version/ABI. If you’re not on
+the same version, install via hyprpm (build locally) instead.
+
+Releases: https://github.com/savonovv/hypr-kinetic-scroll/releases
+
+## Features
+
+- Touchpad-only inertia (ignores real mouse wheels)
+- Exponential velocity smoothing with configurable decay
+- Momentum starts only after fingers leave the touchpad
+- Touching the touchpad again stops active momentum
+- Synthetic scroll emission via Hyprland seat manager
+- Configurable thresholds and frame interval
+- Per-app enable/disable rules with exact class matching
+
+## Requirements
+
+- Hyprland development headers
+- `pkg-config` dependencies for Hyprland
+- C++23-capable compiler
+
+## Build
+
+```bash
+make
+```
+
+## Install via hyprpm (build locally)
+
+This is the safest way to get a matching binary for your Hyprland version:
+
+```bash
+hyprpm add https://github.com/savonovv/hypr-kinetic-scroll
+hyprpm update
+hyprpm enable hypr-kinetic-scroll
+```
+
+## Load / Unload
+
+Hyprland caches plugins by path. When reloading after rebuilds, unload and load
+from a fresh path:
+
+```bash
+# unload (if previously loaded)
+for p in /tmp/hypr-kinetic-scroll-*.so; do hyprctl plugin unload "$p"; done
+
+# load from a new temp path
+TMP=/tmp/hypr-kinetic-scroll-$(date +%s).so
+cp hypr-kinetic-scroll.so "$TMP"
+hyprctl plugin load "$TMP"
+```
+
+## Configuration
+
+Add these to your Hyprland config (e.g. `~/.config/hypr/input.conf`):
+
+```ini
+plugin:kinetic-scroll:enabled = 1
+plugin:kinetic-scroll:decel = 0.92
+plugin:kinetic-scroll:min_velocity = 0.5
+plugin:kinetic-scroll:interval_ms = 16
+plugin:kinetic-scroll:delta_multiplier = 1.25
+plugin:kinetic-scroll:disable_in_browser = 1
+plugin:kinetic-scroll:stop_on_target_change = 1
+plugin:kinetic-scroll:disabled_classes =
+
+# Optional debug
+plugin:kinetic-scroll:debug = 0
+plugin:kinetic-scroll:stop_on_click = 0
+plugin:kinetic-scroll:stop_on_focus = 0
+```
+
+### Per-App Rules
+
+For INI configs, disable kinetic scrolling per app with
+`plugin:kinetic-scroll:disabled_classes`. Classes are exact matches and can be
+separated by commas or spaces.
+
+```ini
+plugin:kinetic-scroll:disabled_classes = org.telegram.desktop
+plugin:kinetic-scroll:disabled_classes = org.telegram.desktop, steam
+```
+
+Find a window's class with `hyprctl clients` or `xprop`.
+
+Lua configs can use the same exact class matching through plugin functions:
+
+```lua
+hl.plugin.kinetic_scroll.disable("org.telegram.desktop")
+hl.plugin.kinetic_scroll.disable("chromium")
+```
+
+To enable kinetic scrolling only in selected apps from Lua:
+
+```lua
+hl.plugin.kinetic_scroll.disable_default()
+hl.plugin.kinetic_scroll.enable("steam")
+hl.plugin.kinetic_scroll.enable("org.gnome.Nautilus")
+```
+
+Available Lua functions:
+
+```lua
+hl.plugin.kinetic_scroll.enable(class)
+hl.plugin.kinetic_scroll.disable(class)
+hl.plugin.kinetic_scroll.enable_default()
+hl.plugin.kinetic_scroll.disable_default()
+hl.plugin.kinetic_scroll.reset_rules()
+```
+
+`kinetic-scroll-rule` is still available for older legacy INI configs that
+accept plugin keywords:
+
+```ini
+kinetic-scroll-rule disable firefox
+kinetic-scroll-rule enable firefox
+```
+
+Notes:
+
+- `decel` is a multiplier applied each frame (lower = faster stop).
+- `min_velocity` is the cutoff threshold for stopping inertia.
+- `interval_ms` controls the decay frame rate (lower = smoother).
+- `delta_multiplier` scales swipe impulse (higher = faster acceleration buildup).
+- `disable_in_browser` keeps native browser kinetic scrolling when set to `1`.
+- `disabled_classes` disables kinetic scrolling for exact window classes.
+- `stop_on_target_change` stops active inertia when scroll target window changes.
+
+The plugin also respects Hyprland's `input:touchpad:scroll_factor` for
+synthetic events.
+
+## Test / Verify
+
+1) Load the plugin (or enable via hyprpm).
+2) Run `hyprctl plugin list` and verify `hypr-kinetic-scroll` is listed.
+3) Move two fingers, keep them touching, and stop moving. The view should stop
+   immediately without momentum.
+4) Do a short two-finger scroll and lift. You should see momentum.
+5) Touch the pad with one finger while momentum is active. Scrolling should
+   stop immediately.
+6) Scroll quickly, stop with both fingers still touching, then lift them. No
+   queued momentum should resume after the lift.
+
+## Debug
+
+When `plugin:kinetic-scroll:debug = 1`, the plugin writes to:
+
+```
+/tmp/hypr-kinetic-scroll.log
+```
+
+This log shows incoming axis events, timing, and state transitions.
+
+## Notes / Troubleshooting
+
+- Some touchpads report scrolls as `mouse` events with smooth deltas. The plugin
+  treats `mouse=1` with `deltaDiscrete=0` as eligible touchpad input.
+- If you see a version mismatch error when loading, rebuild against the running
+  Hyprland headers, or temporarily disable strict version checks (if applicable).
+
+## License
+
+MIT

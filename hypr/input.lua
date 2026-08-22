@@ -5,6 +5,18 @@
 -- See https://wiki.hypr.land/Configuring/Basics/Variables/#input
 hl.config({
   input = {
+    -- Omarchy's default is "compose:caps,shift:both_capslock_cancel" (see
+    -- default/hypr/input.lua). Both are dropped here.
+    --
+    -- compose:caps rewrites Caps Lock to Multi_key at every level, so the key
+    -- emits no Caps_Lock at all and cannot toggle caps in either direction.
+    -- shift:both_capslock_cancel then makes both Shifts together the *only*
+    -- way caps can switch on -- easy to hit by accident, with no obvious way
+    -- back, since the one key you would reach for is now Compose.
+    --
+    -- Empty means plain xkb behaviour: Caps Lock is Caps Lock.
+    kb_options = "",
+
     -- Invert mouse scroll direction to match macOS "natural" scrolling.
     natural_scroll = true,
 
@@ -64,7 +76,10 @@ hl.config({
 -- Alt on the laptop keyboard but Super everywhere else.
 hl.device({
   name = "at-translated-set-2-keyboard",
-  kb_options = "compose:caps,shift:both_capslock_cancel,altwin:swap_alt_win",
+  -- Per-device kb_options *replaces* the global list rather than extending
+  -- it, so this has to restate everything this keyboard should have -- which
+  -- is now just the swap.
+  kb_options = "altwin:swap_alt_win",
 })
 
 -- Magic Mouse pointer acceleration curve.
@@ -174,6 +189,76 @@ hl.device({
 -- App-specific touchpad scroll speeds.
 -- o.window("(Alacritty|kitty|foot)", { scroll_touchpad = 1.5 })
 -- o.window("com.mitchellh.ghostty", { scroll_touchpad = 0.2 })
+
+-- Touchpad scroll speed in the coding-agent terminal.
+--
+-- Omarchy's default input.lua already boosts terminals with
+--   o.window("(Alacritty|kitty|foot)", { scroll_touchpad = 1.5 })
+-- but that rule matches on *class*, and `omarchy agent` launches foot with
+-- --app-id=org.omarchy.agent. So the agent window is a foot window that the
+-- terminal rule never matches, and it scrolls at a bare 1.0 while every other
+-- foot window gets the boost.
+--
+-- Set higher than the 1.5 the terminal rule would have given, because 1.5 on
+-- its own does not make the agent window feel like the other terminals --
+-- foot/foot.ini's `[scrollback] multiplier=7.0` does not appear to reach the
+-- touchpad's high-resolution axis events the way it reaches discrete wheel
+-- clicks. 4.0 is tuned by feel, not derived.
+--
+-- Tune this number alone if the speed is off; it multiplies the touchpad
+-- scroll delta before the window sees it.
+o.window("org.omarchy.agent", { scroll_touchpad = 4.0 })
+
+-- Kinetic (momentum) scrolling in terminals only.
+--
+-- On macOS the system synthesizes momentum after the fingers lift and
+-- delivers it as ordinary scroll events, so every app glides for free.
+-- libinput deliberately does the opposite: it never synthesizes momentum and
+-- expects each toolkit to implement its own fling from the finger-source
+-- scroll and touch-end it reports. GTK, Chromium, Qt and Firefox all did.
+-- Terminals are not toolkit apps -- foot draws its own grid and handles
+-- wl_pointer.axis directly -- so they fall through that gap and never glide.
+--
+-- hypr-kinetic-scroll fills the gap at the compositor, which is the closest
+-- thing Linux has to the macOS layer. But it cannot tell that a toolkit is
+-- already flinging, so leaving it on by default would stack its momentum on
+-- top of Chromium's and GTK's. Hence default-off plus an allowlist: every app
+-- that already has momentum keeps exactly the momentum it has today, and the
+-- plugin only runs where nothing else provides it. That also means no
+-- blocklist to maintain as new apps get installed.
+--
+-- The plugin hooks every pointer libinput marks as a touchpad and has no
+-- per-device filter, so this covers the Magic Mouse too by way of
+-- magicmouse-scroll's virtual touchpad above. That is additive, not a
+-- conflict: in these terminals the Magic Mouse has no toolkit fling to
+-- double up with, and everywhere else the plugin is off entirely.
+--
+-- The .so is built from source by hypr-kinetic-scroll/build.sh in this repo.
+-- Hyprland plugins are compiled against one Hyprland ABI, so re-run that
+-- script after any Hyprland version bump or the plugin will refuse to load.
+--
+-- This line only has an effect on the initial config parse at compositor
+-- startup. During a `hyprctl reload` it is a silent no-op, so a plugin that
+-- has been unloaded does not come back by reloading the config -- it needs an
+-- explicit `hyprctl plugin load`. build.sh does both, in that order, because
+-- the rule calls below only resolve once the plugin is loaded.
+hl.plugin.load(os.getenv("HOME") .. "/.local/lib/hypr/hypr-kinetic-scroll.so")
+
+-- Guarded, because these functions only exist once the plugin has actually
+-- loaded, and an unguarded call takes the whole file down with it:
+--
+--   require("hypr.input"): input.lua:226: attempt to index a nil value
+--                          (field 'kinetic_scroll')
+--
+-- That is a config-error banner plus every setting below this point silently
+-- not applying -- a bad trade for a missing nicety. The plugin can be absent
+-- for ordinary reasons: never built on a fresh machine, or stale after a
+-- Hyprland upgrade. Failing soft costs momentum and nothing else.
+if hl.plugin.kinetic_scroll then
+  hl.plugin.kinetic_scroll.disable_default()
+  hl.plugin.kinetic_scroll.enable("org.omarchy.agent")
+  hl.plugin.kinetic_scroll.enable("foot")
+end
 
 -- Enable touchpad gestures for changing workspaces.
 -- See https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/
