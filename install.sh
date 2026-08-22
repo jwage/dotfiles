@@ -71,6 +71,9 @@ LINUX_LINKS=(
   "omarchy/shell.json:$HOME/.config/omarchy/shell.json"
   "omarchy/shell.toml:$HOME/.config/omarchy/shell.toml"
   "omarchy/defaults/agent:$HOME/.config/omarchy/defaults/agent"
+  "webapps/Gmail Work.desktop:$HOME/.local/share/applications/Gmail Work.desktop"
+  "webapps/Gmail Personal.desktop:$HOME/.local/share/applications/Gmail Personal.desktop"
+  "webapps/gmail.png:$HOME/.local/share/icons/hicolor/256x256/apps/gmail.png"
   "omarchy/plugins/jwage.workspaces/manifest.json:$HOME/.config/omarchy/plugins/jwage.workspaces/manifest.json"
   "omarchy/plugins/jwage.workspaces/Workspaces.qml:$HOME/.config/omarchy/plugins/jwage.workspaces/Workspaces.qml"
   "omarchy/plugins/jwage.workspaces/find-agent-process:$HOME/.config/omarchy/plugins/jwage.workspaces/find-agent-process"
@@ -118,6 +121,16 @@ else
   for entry in "${LINUX_LINKS[@]}"; do
     link_one "$entry"
   done
+
+  # hicolor already carries a gtk icon cache (omarchy-webapp-install writes
+  # one), and a stale cache hides a newly linked icon from Qt's theme lookup
+  # entirely -- which is the difference between the Gmail app windows showing
+  # their real icon in the bar and falling back to the generic executable
+  # glyph. Cheap and idempotent, so just always refresh it.
+  if command -v gtk-update-icon-cache >/dev/null; then
+    gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
+    echo "cached  $HOME/.local/share/icons/hicolor"
+  fi
 fi
 
 # Root-owned system config (kernel module options, udev rules). Linux only

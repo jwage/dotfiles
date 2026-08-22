@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Name=Gmail Personal
+Comment=jonwage@gmail.com
+Exec=omarchy-launch-webapp https://mail.google.com/mail/u/1/
+Terminal=false
+Type=Application
+Icon=gmail
+StartupNotify=true
+StartupWMClass=chrome-mail.google.com__mail_u_1_-Default

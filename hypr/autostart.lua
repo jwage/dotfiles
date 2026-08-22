@@ -74,3 +74,61 @@ hl.on("window.open", function(w)
     hl.dispatch(hl.dsp.window.move({ workspace = "2", follow = false, window = w }))
   end
 end)
+
+-- Gmail runs as one Chrome *app window per account* rather than as tabs, and
+-- that split is load-bearing rather than cosmetic: Hyprland only ever sees a
+-- browser window's active tab title, so two accounts sharing one window can
+-- never both report their unread count. An app window reports its own
+-- account's title, which is where the bar's mail count is read from -- see
+-- gmailUnreadCount in omarchy/plugins/jwage.workspaces/Workspaces.qml. The
+-- bar folds both windows back into a single mail icon carrying the total.
+--
+-- Chrome numbers signed-in accounts in the order they were added. The
+-- /mail/u/<address>/ form, which would not depend on that order, serves
+-- Gmail's "Temporary Error" page inside an app window, so the index form is
+-- the one that actually works. The addresses below are recorded only to say
+-- which index is which -- nothing reads them: the bar takes each account's
+-- real address out of its own window title, so the tooltip stays correct
+-- even if these indexes ever swap.
+local gmail_accounts = {
+  { index = "0", address = "jwage@traderspost.io" },
+  { index = "1", address = "jonwage@gmail.com" },
+}
+
+-- Launched off the first Chrome window rather than a fixed delay after login.
+-- omarchy-launch-webapp hands its URL to the running Chrome rather than
+-- starting one of its own, so firing too early races session restore over
+-- which process wins the singleton and becomes the primary instance -- and
+-- the loser's --restore-last-session is simply lost. Once any Chrome window
+-- exists that race is already settled, which makes "a Chrome window opened"
+-- the actual precondition, where a timeout was only ever a guess at it.
+--
+-- (It was a wrong guess, too: an hl.timer armed inside an hyprland.start
+-- handler never fired here, so the deferred launch this replaces silently
+-- did nothing at boot.)
+local gmail_launched = false
+
+hl.on("window.open", function(w)
+  if gmail_launched or w == nil or w.class ~= "google-chrome" then
+    return
+  end
+
+  gmail_launched = true
+
+  for _, account in ipairs(gmail_accounts) do
+    hl.dispatch(hl.dsp.exec_cmd("omarchy-launch-webapp https://mail.google.com/mail/u/" .. account.index .. "/"))
+  end
+end)
+
+-- Class-based for the same reason as the Electron apps above -- the window is
+-- mapped by the already-running Chrome, not by the pid omarchy-launch-webapp
+-- spawns, so a one-shot pid rule would never fire. Unlike the bare
+-- google-chrome class, a permanent rule is safe here: these classes belong to
+-- the Gmail app windows and to nothing else, so there is no later window to
+-- catch by mistake.
+for _, account in ipairs(gmail_accounts) do
+  o.window(
+    { class = "chrome-mail.google.com__mail_u_" .. account.index .. "_-Default" },
+    { workspace = "1 silent" }
+  )
+end

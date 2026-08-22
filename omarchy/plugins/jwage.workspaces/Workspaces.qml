@@ -189,38 +189,185 @@ BarWidget {
   }
 
   // Gmail keeps its unread inbox count in its own document title, which the
-  // compositor hands us verbatim as the toplevel title and re-emits on every
-  // change — so the count below is event-driven off the same toplevel the
-  // icon already comes from: no polling, no Gmail API, no extra widget.
+  // compositor hands us verbatim and re-emits on every change — so the count
+  // is event-driven off the same toplevel the icon already comes from: no
+  // polling, no Gmail API, no second widget in the bar.
   //
-  // Caveat worth knowing: a plain browser window only ever reports its
-  // *active tab's* title, so a count appears there only while Gmail is the
-  // tab in front. A dedicated Gmail app/PWA window always reports its own
-  // title, so it is the reliable home for this.
-  readonly property var browserTitleSuffix: /\s-\s(?:Google Chrome|Chromium|Brave|Microsoft Edge|Vivaldi|Helium)$/
+  // This only works because each account runs as its own Chrome app window
+  // (see hypr/autostart.lua). A plain browser window reports only its
+  // *active tab's* title, so two accounts living as two tabs can never both
+  // be read — which is exactly why they were split out.
+  readonly property string gmailAppIdPrefix: "chrome-mail.google.com__"
   readonly property int maxUnreadShown: 99
 
-  function windowTitle(toplevel) {
-    if (!toplevel || !toplevel.wayland) return ""
-    return String(toplevel.wayland.title || "")
+  function isGmailWindow(appId) {
+    return String(appId || "").indexOf(root.gmailAppIdPrefix) === 0
   }
 
-  // Accepts both title shapes Gmail has shipped — "(2) Inbox - you@x - Gmail"
-  // and "Inbox (2) - you@x - Gmail". Only the first " - " segment is read,
-  // and only at its two edges, so an open message whose *subject* contains
-  // parentheses ("Re: renewal (2 seats) - you@x - Gmail") cannot be misread
-  // as an unread count. Anything that is not a Gmail title, or is one with no
-  // count in it, returns 0 and renders nothing.
-  function gmailUnreadCount(title) {
-    var text = String(title || "").replace(root.browserTitleSuffix, "")
-    if (!/\s-\sGmail$/.test(text)) return 0
+  function windowTitle(toplevel) {
+    if (!toplevel) return ""
+    if (toplevel.wayland && toplevel.wayland.title) return String(toplevel.wayland.title)
+    return String(toplevel.title || "")
+  }
 
-    var head = text.split(" - ")[0]
-    var match = /^\((\d{1,6})\+?\)/.exec(head) || /^Inbox \((\d{1,6})\+?\)$/.exec(head)
+  // Accepts both title shapes Gmail ships — "(2) Inbox - you@x - …" and
+  // "Inbox (2) - you@x - …" — by reading only the two edges of the first
+  // " - " segment, so an open message whose *subject* contains parentheses
+  // ("Re: renewal (2 seats) - …") is never misread as a count. Which window
+  // is Gmail is decided by app id, not by the title, because a Workspace
+  // account ends its title "<domain> Mail" where a personal one says
+  // "Gmail" — matching on the word would silently miss the work inbox.
+  function gmailUnreadCount(title) {
+    var head = String(title || "").split(" - ")[0]
+    var match = /^\((\d{1,6})\+?\)/.exec(head) || /\((\d{1,6})\+?\)\s*$/.exec(head)
     if (!match) return 0
 
     var count = parseInt(match[1], 10)
     return isFinite(count) && count > 0 ? count : 0
+  }
+
+  // "(2) Inbox - jwage@traderspost.io - traderspost.io Mail". The address is
+  // the only part that names the account the same way for both a Workspace
+  // and a personal inbox, so the tooltip is keyed off it.
+  function gmailAccountLabel(title) {
+    var parts = String(title || "").split(" - ")
+    for (var i = 0; i < parts.length; i++) {
+      var part = parts[i].trim()
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(part)) return part
+    }
+    return String(title || "").trim() || "Gmail"
+  }
+
+  // hyprctl's "at" for the window, so icons can be ordered the way the
+  // windows are actually arranged on screen instead of however Hyprland
+  // happens to hand back the list. lastIpcObject is refreshed along with the
+  // toplevel set, so this follows opens, closes and workspace moves.
+  function windowPosition(toplevel) {
+    var ipc = toplevel ? toplevel.lastIpcObject : null
+    var at = ipc ? ipc["at"] : null
+    var x = (at && at.length > 1) ? Number(at[0]) : 0
+    var y = (at && at.length > 1) ? Number(at[1]) : 0
+    return { x: isFinite(x) ? x : 0, y: isFinite(y) ? y : 0 }
+  }
+
+  // Hyprland hands addresses back with and without the 0x prefix depending
+  // on which side of the IPC they came from.
+  function normalizedAddress(value) {
+    return String(value || "").replace(/^0x/i, "").toLowerCase()
+  }
+
+  // One entry per window, except Gmail: every Gmail window folds into a
+  // single entry carrying the summed unread count, because one mail icon
+  // that means "your mail" beats one icon per account. Entries are then
+  // ordered by on-screen position — top row first, then left to right — so
+  // the icon strip reads in the same order the workspace looks.
+  function buildEntries(toplevels) {
+    var entries = []
+    var gmailWindows = []
+
+    for (var i = 0; i < toplevels.length; i++) {
+      var toplevel = toplevels[i]
+      if (!toplevel) continue
+
+      var appId = root.windowAppId(toplevel)
+      if (root.isGmailWindow(appId)) {
+        gmailWindows.push(toplevel)
+        continue
+      }
+
+      entries.push({
+        gmail: false,
+        appId: appId,
+        address: String(toplevel["address"] || ""),
+        position: root.windowPosition(toplevel),
+        unread: 0,
+        accounts: []
+      })
+    }
+
+    if (gmailWindows.length > 0) entries.push(root.buildGmailEntry(gmailWindows))
+
+    entries.sort(root.compareEntries)
+    return entries
+  }
+
+  function buildGmailEntry(windows) {
+    var accounts = []
+    var total = 0
+    var position = null
+
+    for (var i = 0; i < windows.length; i++) {
+      var toplevel = windows[i]
+      var title = root.windowTitle(toplevel)
+      var unread = root.gmailUnreadCount(title)
+      total += unread
+
+      accounts.push({
+        label: root.gmailAccountLabel(title),
+        unread: unread,
+        address: String(toplevel["address"] || "")
+      })
+
+      // The group sorts as whichever of its windows sits furthest top-left,
+      // so it takes the place in the strip a reader would expect.
+      var at = root.windowPosition(toplevel)
+      if (position === null || at.y < position.y || (at.y === position.y && at.x < position.x)) position = at
+    }
+
+    // Sorted by address, never by count: the click cycle and the tooltip
+    // must not reshuffle themselves just because a message arrived.
+    accounts.sort(function(left, right) { return String(left.label).localeCompare(String(right.label)) })
+
+    return {
+      gmail: true,
+      appId: root.windowAppId(windows[0]),
+      address: accounts.length > 0 ? accounts[0].address : "",
+      position: position || ({ x: 0, y: 0 }),
+      unread: total,
+      accounts: accounts
+    }
+  }
+
+  // Reading order: top row first, then left to right within the row. The
+  // address tie-break keeps the order from wobbling between two windows that
+  // report the same position (a stack, or geometry that has not refreshed).
+  function compareEntries(left, right) {
+    if (left.position.y !== right.position.y) return left.position.y - right.position.y
+    if (left.position.x !== right.position.x) return left.position.x - right.position.x
+    return String(left.address).localeCompare(String(right.address))
+  }
+
+  function gmailTooltip(entry) {
+    if (!entry || !entry.accounts) return ""
+
+    var lines = []
+    for (var i = 0; i < entry.accounts.length; i++) {
+      var account = entry.accounts[i]
+      lines.push(account.label + "   " + (account.unread > 0 ? account.unread + " unread" : "no unread"))
+    }
+    return lines.join("\n")
+  }
+
+  // Unread inboxes first, then the rest, always in the same order — and
+  // always advancing past whatever is focused, so clicking a second time
+  // reliably lands on the other account instead of re-focusing this one.
+  function focusGmail(entry) {
+    if (!entry || !entry.accounts || entry.accounts.length === 0) return
+
+    var ordered = []
+    for (var i = 0; i < entry.accounts.length; i++) if (entry.accounts[i].unread > 0) ordered.push(entry.accounts[i])
+    for (var j = 0; j < entry.accounts.length; j++) if (entry.accounts[j].unread <= 0) ordered.push(entry.accounts[j])
+
+    var focused = Hyprland.activeToplevel ? root.normalizedAddress(Hyprland.activeToplevel.address) : ""
+    var index = -1
+    for (var k = 0; k < ordered.length; k++) {
+      if (root.normalizedAddress(ordered[k].address) === focused) {
+        index = k
+        break
+      }
+    }
+
+    root.focusWindow(ordered[(index + 1) % ordered.length].address)
   }
 
   // App icons come from the window's app id. A window's app id and its
@@ -302,6 +449,9 @@ BarWidget {
         // The icon row only fits in the horizontal bar; the vertical
         // (sidebar) layout has no room for it and just keeps the number.
         readonly property bool showIcons: !root.vertical && occupied
+        // Windows folded into what the strip actually draws: Gmail collapsed
+        // to one entry, everything ordered by on-screen position.
+        readonly property var entries: root.buildEntries(toplevels)
 
         bar: root.bar
         text: numberText
@@ -346,7 +496,7 @@ BarWidget {
             // every Hyprland event, which was intermittently corrupting the
             // agent icon resolution below (visible as sporadic "Binding loop
             // detected for property source" warnings).
-            model: workspaceButton.showIcons ? workspaceButton.toplevels.length : 0
+            model: workspaceButton.showIcons ? workspaceButton.entries.length : 0
 
             // A plain Item rather than a Row: the click target has to cover
             // the icon *and* its count, and a MouseArea inside a positioner
@@ -356,8 +506,12 @@ BarWidget {
             Item {
               id: windowEntry
               required property int index
-              readonly property var toplevel: workspaceButton.toplevels[index]
-              readonly property int unreadCount: root.gmailUnreadCount(root.windowTitle(toplevel))
+              readonly property var entry: workspaceButton.entries[index] || null
+              readonly property bool isGmail: entry !== null && entry.gmail === true
+              readonly property int unreadCount: entry !== null ? entry.unread : 0
+              // Bar.showTooltip only accepts a target that reports itself
+              // hovered, so the flag has to live on the item being pointed at.
+              property bool tooltipHovered: false
 
               anchors.verticalCenter: parent.verticalCenter
               implicitWidth: windowIcon.width + (unreadLabel.visible ? unreadLabel.anchors.leftMargin + unreadLabel.implicitWidth : 0)
@@ -372,7 +526,8 @@ BarWidget {
                 fillMode: Image.PreserveAspectFit
                 sourceSize.width: width * Screen.devicePixelRatio
                 sourceSize.height: height * Screen.devicePixelRatio
-                source: root.windowIconSource(root.windowAppId(windowEntry.toplevel), windowEntry.toplevel ? windowEntry.toplevel["address"] : "")
+                source: root.windowIconSource(windowEntry.entry ? windowEntry.entry.appId : "",
+                                              windowEntry.entry ? windowEntry.entry.address : "")
               }
 
               // Clamped so a runaway inbox can never stretch the workspace
@@ -390,11 +545,28 @@ BarWidget {
               }
 
               MouseArea {
+                id: entryMouse
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
+                // Only the merged Gmail icon has anything to explain; leaving
+                // hover off elsewhere keeps every other icon exactly as it was.
+                hoverEnabled: windowEntry.isGmail
+
                 onClicked: function(mouse) {
                   mouse.accepted = true
-                  if (windowEntry.toplevel) root.focusWindow(windowEntry.toplevel["address"])
+                  if (!windowEntry.entry) return
+                  if (windowEntry.isGmail) root.focusGmail(windowEntry.entry)
+                  else root.focusWindow(windowEntry.entry.address)
+                }
+
+                onEntered: {
+                  windowEntry.tooltipHovered = true
+                  if (root.bar) root.bar.showTooltip(windowEntry, root.gmailTooltip(windowEntry.entry))
+                }
+
+                onExited: {
+                  windowEntry.tooltipHovered = false
+                  if (root.bar) root.bar.hideTooltip(windowEntry)
                 }
               }
             }

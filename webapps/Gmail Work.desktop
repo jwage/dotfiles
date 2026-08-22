@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Name=Gmail Work
+Comment=jwage@traderspost.io
+Exec=omarchy-launch-webapp https://mail.google.com/mail/u/0/
+Terminal=false
+Type=Application
+Icon=gmail
+StartupNotify=true
+StartupWMClass=chrome-mail.google.com__mail_u_0_-Default
