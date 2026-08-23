@@ -278,6 +278,21 @@ BarWidget {
   // be read — which is exactly why they were split out.
   readonly property string gmailAppIdPrefix: "chrome-mail.google.com__"
   readonly property int maxUnreadShown: 99
+  // Both accounts share one Chrome-installed icon (Chrome caches the same PWA
+  // artwork regardless of which profile installed it), so the icon alone
+  // can't tell them apart. Keyed by the same email address the unread badge
+  // and tooltip already read off the title -- add a new account here to
+  // give it its own dot instead of falling back to the default.
+  readonly property var gmailAccentColors: ({
+    "jwage@traderspost.io": "#4A9EFF",
+    "jonwage@gmail.com": "#34A853"
+  })
+  readonly property string gmailDefaultAccentColor: "#9AA0A6"
+
+  function gmailAccentColor(label) {
+    var color = root.gmailAccentColors[String(label || "")]
+    return color ? color : root.gmailDefaultAccentColor
+  }
   readonly property string slackStatePath: Quickshell.env("HOME") + "/.config/Slack/storage/root-state.json"
   property var slackState: null
   property var gmailUnreadByAddress: ({})
@@ -500,6 +515,7 @@ BarWidget {
       if (root.isTransientWindow(toplevel, appId)) continue
 
       var isGmail = root.isGmailWindow(appId)
+      var entryLabel = isGmail ? root.gmailAccountLabel(root.windowTitle(toplevel)) : ""
       entries.push({
         gmail: isGmail,
         appId: appId,
@@ -508,7 +524,7 @@ BarWidget {
         position: root.windowPosition(toplevel),
         order: i,
         unread: root.unreadCountForWindow(appId, toplevel),
-        label: isGmail ? root.gmailAccountLabel(root.windowTitle(toplevel)) : ""
+        label: entryLabel
       })
     }
 
@@ -782,6 +798,25 @@ BarWidget {
                 sourceSize.height: height * Screen.devicePixelRatio
                 source: root.windowIconSource(windowEntry.entry ? windowEntry.entry.appId : "",
                                               windowEntry.entry ? windowEntry.entry.address : "")
+              }
+
+              // Chrome caches one PWA icon per installed site regardless of
+              // which profile installed it, so every Gmail window shows the
+              // same artwork. This dot is the only thing that tells two
+              // accounts apart at a glance.
+              Rectangle {
+                anchors.left: windowIcon.left
+                anchors.bottom: windowIcon.bottom
+                anchors.leftMargin: -width * 0.12
+                anchors.bottomMargin: -height * 0.12
+                visible: windowEntry.isGmail
+                z: 2
+                width: Math.max(8, Math.round(root.iconSize * 0.34))
+                height: width
+                radius: width / 2
+                color: windowEntry.entry ? root.gmailAccentColor(windowEntry.entry.label) : root.gmailDefaultAccentColor
+                border.width: 1.5
+                border.color: root.bar ? root.bar.barForeground : Color.foreground
               }
 
               Rectangle {
