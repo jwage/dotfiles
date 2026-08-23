@@ -2,3 +2,4 @@
 claude = "latest"
 codex = "latest"
 gh = "latest"
+"npm:@xai-official/grok" = "latest"
