@@ -69,6 +69,18 @@ local REVEAL_DELAY_MS = 80
 -- maximized for good.
 local cycle_in_progress = false
 
+-- Curated cycle order matching the bar's icon strip (see appPriority in
+-- omarchy/plugins/jwage.workspaces/Workspaces.qml, which must be kept in
+-- sync -- Lua has no access to Quickshell's toplevel model, so the two lists
+-- can't be shared directly). A window whose class isn't listed keeps
+-- Hyprland's own order, appended after the ones that are.
+local WINDOW_PRIORITY = {
+  ["chrome-mail.google.com__mail_u_0_-Default"] = 1, -- work Gmail
+  ["chrome-mail.google.com__mail_u_1_-Default"] = 2, -- personal Gmail
+  ["slack"] = 3,
+  ["signal"] = 4,
+}
+
 local function cycle_window(forward)
   return function()
     if cycle_in_progress then
@@ -81,24 +93,35 @@ local function cycle_window(forward)
       return
     end
 
-    -- Deliberately unsorted: this is Hyprland's own window order, the same one
-    -- `cyclenext` walks, so the cycle keeps the sequence it had before.
-    local windows = {}
-    local index
-    for _, window in ipairs(hl.get_workspace_windows(workspace.id) or {}) do
+    local entries = {}
+    for original_index, window in ipairs(hl.get_workspace_windows(workspace.id) or {}) do
       if window.mapped and not window.hidden then
-        windows[#windows + 1] = window
-        if window.address == source.address then
-          index = #windows
-        end
+        entries[#entries + 1] = { window = window, original_index = original_index }
       end
     end
 
-    if not index or #windows < 2 then
+    table.sort(entries, function(a, b)
+      local rank_a = WINDOW_PRIORITY[a.window.class] or math.huge
+      local rank_b = WINDOW_PRIORITY[b.window.class] or math.huge
+      if rank_a ~= rank_b then
+        return rank_a < rank_b
+      end
+      return a.original_index < b.original_index
+    end)
+
+    local index
+    for i, entry in ipairs(entries) do
+      if entry.window.address == source.address then
+        index = i
+        break
+      end
+    end
+
+    if not index or #entries < 2 then
       return
     end
 
-    local target = windows[((index - 1 + (forward and 1 or -1)) % #windows) + 1]
+    local target = entries[((index - 1 + (forward and 1 or -1)) % #entries) + 1].window
     local internal = source.fullscreen or 0
     local client = source.fullscreen_client or 0
 
