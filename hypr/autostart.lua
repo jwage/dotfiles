@@ -106,10 +106,21 @@ local gmail_accounts = {
 -- (It was a wrong guess, too: an hl.timer armed inside an hyprland.start
 -- handler never fired here, so the deferred launch this replaces silently
 -- did nothing at boot.)
+--
+-- Also gated on chrome_startup_grace_period (defined above, for the
+-- workspace-pin rule): Hyprland reloads this file's Lua state on every
+-- config reload (autoreload-on-save, or the reload keybind), which resets
+-- gmail_launched back to false, re-arming this handler for the rest of the
+-- session. Without the grace-period check, the next ordinary Chrome window
+-- opened afterwards -- Ctrl+N, a link, a sign-in popup, hours later -- would
+-- match "google-chrome" and silently relaunch both Gmail windows again.
+-- chrome_startup_grace_period only turns true from an actual hyprland.start
+-- event (a real login), not a reload, so this stays inert after a reload
+-- until the next login instead of firing on a random later window.
 local gmail_launched = false
 
 hl.on("window.open", function(w)
-  if gmail_launched or w == nil or w.class ~= "google-chrome" then
+  if gmail_launched or w == nil or w.class ~= "google-chrome" or not chrome_startup_grace_period then
     return
   end
 
