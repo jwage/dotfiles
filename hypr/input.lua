@@ -126,15 +126,15 @@ hl.device({
 -- libinput extrapolates from the last two, so a flat tail caps the gain for
 -- movements faster than the table covers instead of letting it run away.
 local GAIN = {
-  { 0.0, 0.40 }, --   0 mm/s -- fine positioning; pointer moves less than the hand
-  { 0.5, 0.45 }, --  13 mm/s
-  { 1.0, 0.60 }, --  25 mm/s
-  { 2.0, 0.90 }, --  51 mm/s
-  { 4.0, 1.30 }, -- 102 mm/s -- ordinary aiming, about where the old flat gain sat
-  { 8.0, 1.85 }, -- 203 mm/s
-  { 16.0, 2.55 }, -- 406 mm/s
-  { 24.0, 3.00 }, -- 610 mm/s -- flicks across the screen
-  { 31.5, 3.00 }, -- 800 mm/s -- flat tail, see above
+  { 0.0, 0.10 }, --   0 mm/s -- fine positioning; pointer moves less than the hand
+  { 0.5, 0.11 }, --  13 mm/s
+  { 1.0, 0.15 }, --  25 mm/s
+  { 2.0, 0.22 }, --  51 mm/s
+  { 4.0, 0.31 }, -- 102 mm/s -- ordinary aiming, about where the old flat gain sat
+  { 8.0, 0.44 }, -- 203 mm/s
+  { 16.0, 0.61 }, -- 406 mm/s
+  { 24.0, 0.72 }, -- 610 mm/s -- flicks across the screen
+  { 31.5, 0.72 }, -- 800 mm/s -- flat tail, see above
 }
 
 -- Sample GAIN into the uniformly spaced points libinput wants: a step, then
