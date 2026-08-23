@@ -277,22 +277,37 @@ BarWidget {
   // *active tab's* title, so two accounts living as two tabs can never both
   // be read — which is exactly why they were split out.
   readonly property string gmailAppIdPrefix: "chrome-mail.google.com__"
+  // Curated icon order for the bar strip. Keep in sync with WINDOW_PRIORITY
+  // in hypr/bindings.lua, which drives the same order for Super+Tab
+  // cycling -- Lua has no access to Quickshell's toplevel model, so the two
+  // lists can't be shared directly. Anything not listed here keeps its
+  // normal compositor order, appended after these.
+  readonly property var appPriority: [
+    "chrome-mail.google.com__mail_u_0_-Default",
+    "chrome-mail.google.com__mail_u_1_-Default",
+    "slack",
+    "signal"
+  ]
+
+  function priorityIndex(appId) {
+    var index = root.appPriority.indexOf(String(appId || ""))
+    return index === -1 ? root.appPriority.length : index
+  }
   readonly property int maxUnreadShown: 99
   // Both accounts share one Chrome-installed icon (Chrome caches the same PWA
   // artwork regardless of which profile installed it), so the icon alone
   // can't tell them apart. Keyed by the same email address the unread badge
   // and tooltip already read off the title -- add a new account here to
   // give it its own dot instead of falling back to the default.
-  readonly property var gmailAccentColors: ({
-    "jwage@traderspost.io": "#4A9EFF",
-    "jonwage@gmail.com": "#34A853"
+  // Each account gets its own recolored copy of the real Gmail mark (see
+  // assets/) instead of a same-icon-plus-badge treatment -- work in
+  // TradersPost's brand blue, personal in a red ramp off Gmail's original
+  // envelope red. An account with no entry here just falls through to
+  // whatever Chrome cached for it.
+  readonly property var gmailIconAssets: ({
+    "jwage@traderspost.io": "assets/gmail-work.svg",
+    "jonwage@gmail.com": "assets/gmail-personal.svg"
   })
-  readonly property string gmailDefaultAccentColor: "#9AA0A6"
-
-  function gmailAccentColor(label) {
-    var color = root.gmailAccentColors[String(label || "")]
-    return color ? color : root.gmailDefaultAccentColor
-  }
   readonly property string slackStatePath: Quickshell.env("HOME") + "/.config/Slack/storage/root-state.json"
   property var slackState: null
   property var gmailUnreadByAddress: ({})
@@ -532,9 +547,13 @@ BarWidget {
     return entries
   }
 
-  // The explicit order comes from the toplevel collection, not live window
-  // geometry. The address tie-break only handles a defensive missing order.
+  // Curated apps sort first, in appPriority's order; everything else falls
+  // back to the toplevel collection's order, not live window geometry. The
+  // address tie-break only handles a defensive missing order.
   function compareEntries(left, right) {
+    var leftPriority = root.priorityIndex(left.appId)
+    var rightPriority = root.priorityIndex(right.appId)
+    if (leftPriority !== rightPriority) return leftPriority - rightPriority
     if (left.order !== right.order) return left.order - right.order
     return String(left.address).localeCompare(String(right.address))
   }
@@ -556,9 +575,17 @@ BarWidget {
   // Icon=co.anysphere.cursor, appId "signal" but Icon=signal-desktop), so
   // resolve the desktop entry first via Quickshell's own heuristic matcher
   // before trying the app id directly, then fall back to a generic icon.
-  function windowIconSource(appId, address) {
+  function windowIconSource(appId, address, gmailLabel) {
     var name = String(appId || "").trim()
     if (!name) return Quickshell.iconPath("application-x-executable", true)
+
+    // Chrome caches one PWA icon per installed site regardless of which
+    // profile installed it, so both Gmail accounts would otherwise show the
+    // exact same artwork.
+    if (root.isGmailWindow(name)) {
+      var iconAsset = root.gmailIconAssets[String(gmailLabel || "")]
+      if (iconAsset) return Qt.resolvedUrl(iconAsset)
+    }
 
     // Reuse Slack's status-notifier icon. Slack updates this icon immediately
     // when its unread state changes, including the app-provided badge.
@@ -781,7 +808,6 @@ BarWidget {
               }
 
               anchors.verticalCenter: parent.verticalCenter
-              opacity: windowEntry.appFocused ? 1.0 : 0.55
               // The unread count is an overlay, so it must not widen the icon
               // slot or push the following app away from its normal spacing.
               implicitWidth: windowIcon.width
@@ -793,30 +819,18 @@ BarWidget {
                 anchors.verticalCenter: parent.verticalCenter
                 width: root.iconSize
                 height: root.iconSize
+                // Dimming lives here rather than on windowEntry itself so it
+                // doesn't drag the unread badge down with it -- a badge that
+                // fades along with an unfocused icon defeats the point of an
+                // unread count, which matters most on windows you aren't
+                // currently looking at.
+                opacity: windowEntry.appFocused ? 1.0 : 0.55
                 fillMode: Image.PreserveAspectFit
                 sourceSize.width: width * Screen.devicePixelRatio
                 sourceSize.height: height * Screen.devicePixelRatio
                 source: root.windowIconSource(windowEntry.entry ? windowEntry.entry.appId : "",
-                                              windowEntry.entry ? windowEntry.entry.address : "")
-              }
-
-              // Chrome caches one PWA icon per installed site regardless of
-              // which profile installed it, so every Gmail window shows the
-              // same artwork. This dot is the only thing that tells two
-              // accounts apart at a glance.
-              Rectangle {
-                anchors.left: windowIcon.left
-                anchors.bottom: windowIcon.bottom
-                anchors.leftMargin: -width * 0.12
-                anchors.bottomMargin: -height * 0.12
-                visible: windowEntry.isGmail
-                z: 2
-                width: Math.max(8, Math.round(root.iconSize * 0.34))
-                height: width
-                radius: width / 2
-                color: windowEntry.entry ? root.gmailAccentColor(windowEntry.entry.label) : root.gmailDefaultAccentColor
-                border.width: 1.5
-                border.color: root.bar ? root.bar.barForeground : Color.foreground
+                                              windowEntry.entry ? windowEntry.entry.address : "",
+                                              windowEntry.entry ? windowEntry.entry.label : "")
               }
 
               Rectangle {
