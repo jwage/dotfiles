@@ -342,6 +342,7 @@ BarWidget {
   }
 
   function unreadCountForWindow(appId, toplevel) {
+    if (root.isGmailWindow(appId)) return root.gmailUnreadForWindow(toplevel, root.windowTitle(toplevel))
     if (appId === "signal") return root.signalUnreadCount(toplevel)
     if (appId !== "slack") return 0
 
@@ -477,16 +478,14 @@ BarWidget {
     return String(value || "").replace(/^0x/i, "").toLowerCase()
   }
 
-  // One entry per window, except Gmail: every Gmail window folds into a
-  // single entry carrying the summed unread count, because one mail icon
-  // that means "your mail" beats one icon per account. Entries retain the
-  // order in which the toplevel collection supplies them, so focusing a
-  // window never changes the icon order.
+  // One entry per window, Gmail included: each account gets its own icon
+  // and its own unread badge, rather than folding every Gmail window into
+  // one combined icon. Entries retain the order in which the toplevel
+  // collection supplies them, so focusing a window never changes the icon
+  // order.
   function buildEntries(toplevels) {
     var gmailRefresh = root.gmailRevision
     var entries = []
-    var gmailWindows = []
-    var gmailOrder = -1
 
     for (var i = 0; i < toplevels.length; i++) {
       var toplevel = toplevels[i]
@@ -499,71 +498,22 @@ BarWidget {
 
       var appId = root.windowAppId(toplevel)
       if (root.isTransientWindow(toplevel, appId)) continue
-      if (root.isGmailWindow(appId)) {
-        gmailWindows.push(toplevel)
-        if (gmailOrder === -1) gmailOrder = i
-        continue
-      }
 
+      var isGmail = root.isGmailWindow(appId)
       entries.push({
-        gmail: false,
+        gmail: isGmail,
         appId: appId,
         toplevel: toplevel,
-        address: String(toplevel["address"] || ""),
+        address: address,
         position: root.windowPosition(toplevel),
         order: i,
         unread: root.unreadCountForWindow(appId, toplevel),
-        accounts: []
+        label: isGmail ? root.gmailAccountLabel(root.windowTitle(toplevel)) : ""
       })
-    }
-
-    if (gmailWindows.length > 0) {
-      var gmailEntry = root.buildGmailEntry(gmailWindows)
-      gmailEntry.order = gmailOrder
-      entries.push(gmailEntry)
     }
 
     entries.sort(root.compareEntries)
     return entries
-  }
-
-  function buildGmailEntry(windows) {
-    var accounts = []
-    var total = 0
-    var position = null
-
-    for (var i = 0; i < windows.length; i++) {
-      var toplevel = windows[i]
-      var title = root.windowTitle(toplevel)
-      var unread = root.gmailUnreadForWindow(toplevel, title)
-      total += unread
-
-      accounts.push({
-        label: root.gmailAccountLabel(title),
-        unread: unread,
-        toplevel: toplevel,
-        address: String(toplevel["address"] || "")
-      })
-
-      // The group keeps the position of the first Gmail window in the
-      // compositor's stable toplevel order.
-      var at = root.windowPosition(toplevel)
-      if (position === null || at.y < position.y || (at.y === position.y && at.x < position.x)) position = at
-    }
-
-    // Sorted by address, never by count: the click cycle and the tooltip
-    // must not reshuffle themselves just because a message arrived.
-    accounts.sort(function(left, right) { return String(left.label).localeCompare(String(right.label)) })
-
-    return {
-      gmail: true,
-      appId: root.windowAppId(windows[0]),
-      toplevel: windows.length > 0 ? windows[0] : null,
-      address: accounts.length > 0 ? accounts[0].address : "",
-      position: position || ({ x: 0, y: 0 }),
-      unread: total,
-      accounts: accounts
-    }
   }
 
   // The explicit order comes from the toplevel collection, not live window
@@ -577,46 +527,12 @@ BarWidget {
     var active = Hyprland.activeToplevel
     if (!entry || !active) return false
     var activeAddress = root.normalizedAddress(active.address)
-    if (entry.gmail && entry.accounts) {
-      for (var i = 0; i < entry.accounts.length; i++)
-        if (root.normalizedAddress(entry.accounts[i].address) === activeAddress) return true
-      return false
-    }
     return root.normalizedAddress(entry.address) === activeAddress
   }
 
   function gmailTooltip(entry) {
-    if (!entry || !entry.accounts) return ""
-
-    var lines = []
-    for (var i = 0; i < entry.accounts.length; i++) {
-      var account = entry.accounts[i]
-      lines.push(account.label + "   " + (account.unread > 0 ? account.unread + " unread" : "no unread"))
-    }
-    return lines.join("\n")
-  }
-
-  // Unread inboxes first, then the rest, always in the same order — and
-  // always advancing past whatever is focused, so clicking a second time
-  // reliably lands on the other account instead of re-focusing this one.
-  function focusGmail(entry) {
-    if (!entry || !entry.accounts || entry.accounts.length === 0) return
-
-    var ordered = []
-    for (var i = 0; i < entry.accounts.length; i++) if (entry.accounts[i].unread > 0) ordered.push(entry.accounts[i])
-    for (var j = 0; j < entry.accounts.length; j++) if (entry.accounts[j].unread <= 0) ordered.push(entry.accounts[j])
-
-    var focused = Hyprland.activeToplevel ? root.normalizedAddress(Hyprland.activeToplevel.address) : ""
-    var index = -1
-    for (var k = 0; k < ordered.length; k++) {
-      if (root.normalizedAddress(ordered[k].address) === focused) {
-        index = k
-        break
-      }
-    }
-
-    var next = ordered[(index + 1) % ordered.length]
-    root.focusToplevel(next.toplevel, next.address)
+    if (!entry) return ""
+    return entry.label + "   " + (entry.unread > 0 ? entry.unread + " unread" : "no unread")
   }
 
   // App icons come from the window's app id. A window's app id and its
@@ -710,8 +626,8 @@ BarWidget {
         // The icon row only fits in the horizontal bar; the vertical
         // (sidebar) layout has no room for it and just keeps the number.
         readonly property bool showIcons: !root.vertical && occupied
-        // Windows folded into what the strip actually draws: Gmail collapsed
-        // to one entry, everything kept in stable compositor order.
+        // Windows folded into what the strip actually draws, kept in stable
+        // compositor order.
         readonly property var entries: root.buildEntries(toplevels)
         readonly property bool isFirstWorkspace: modelData === root.workspaceIds()[0]
 
@@ -824,8 +740,7 @@ BarWidget {
                 if (root.bar) root.bar.hideTooltip(windowEntry)
                 if (button !== Qt.LeftButton || !windowEntry.entry) return
 
-                if (windowEntry.isGmail) root.focusGmail(windowEntry.entry)
-                else root.focusToplevel(windowEntry.entry.toplevel, windowEntry.entry.address)
+                root.focusToplevel(windowEntry.entry.toplevel, windowEntry.entry.address)
               }
 
               // The lookup scans registrations newest-first, so the last one
