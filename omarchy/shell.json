@@ -22,26 +22,26 @@
           "id": "omarchy.indicators"
         },
         {
+          "id": "omarchy.keyboard-layout"
+        },
+        {
           "id": "jwage.clock",
           "format": "h:mm:ss AP",
           "formatAlt": "d MMMM 'W'ww yyyy",
           "verticalFormat": "HH\n—\nmm"
         },
         {
-          "id": "omarchy.keyboard-layout"
-        },
-        {
           "id": "omarchy.weather"
         },
         {
           "id": "omarchy.system-update"
-        }
-      ],
-      "right": [
+        },
         {
           "id": "jwage.traderspost",
           "pollSeconds": 60
-        },
+        }
+      ],
+      "right": [
         {
           "id": "omarchy.tray",
           "pinned": [
