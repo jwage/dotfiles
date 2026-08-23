@@ -594,6 +594,9 @@ BarWidget {
       if (slackIcon.length > 0) return slackIcon
     }
 
+    if (name === "com.anthropic.Claude")
+      return Util.fileUrl(root.omarchyPath + "/shell/plugins/agents/assets/claude.svg")
+
     if (name === "org.omarchy.agent") {
       // Deferred: resolveAgentForWindow mutates reactive state (the probe
       // queue, _probeBusy) that this same function also reads through
