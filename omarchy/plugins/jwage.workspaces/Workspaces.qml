@@ -814,7 +814,7 @@ BarWidget {
               // The unread count is an overlay, so it must not widen the icon
               // slot or push the following app away from its normal spacing.
               implicitWidth: windowIcon.width
-              implicitHeight: root.iconSize
+              implicitHeight: root.barSize
 
               Image {
                 id: windowIcon
