@@ -19,7 +19,6 @@ on the one motion.
 import asyncio
 import logging
 import math
-import time
 
 from evdev import AbsInfo, InputDevice, UInput, ecodes as e, list_devices
 
@@ -165,9 +164,8 @@ class VirtualTouchpad:
 
 
 class ScrollEngine:
-    def __init__(self, pad, clock=time.monotonic):
+    def __init__(self, pad):
         self.pad = pad
-        self.clock = clock
         self.current_slot = 0
         self.slots = {}
         self.contact_slot = None
@@ -210,11 +208,10 @@ class ScrollEngine:
     def primary(self):
         return min(self.contacts(), default=(None, None))
 
-    def frame(self):
+    def frame(self, now):
         if self.buttons_down:
             return
         if len(self.contacts()) > MAX_SCROLL_CONTACTS:
-            # Hand multi-finger motion to the gesture daemon untouched.
             self.reset_contact()
             return
         slot, info = self.primary()
@@ -226,12 +223,12 @@ class ScrollEngine:
             self.reset_contact()
             self.contact_slot = slot
             self.origin = self.previous = point
-            self.origin_t = self.clock()
+            self.origin_t = now
             return
         if not self.scrolling:
-            if self.clock() - self.origin_t > SCROLL_START_WINDOW:
+            if now - self.origin_t > SCROLL_START_WINDOW:
                 self.origin = self.previous = point
-                self.origin_t = self.clock()
+                self.origin_t = now
                 return
             distance = math.hypot(
                 (point[0] - self.origin[0]) / SOURCE_RES_X,
@@ -239,28 +236,28 @@ class ScrollEngine:
             )
             if distance >= SCROLL_START_MM:
                 self.scrolling = True
-                self.last_motion_t = self.clock()
+                self.last_motion_t = now
                 self.pad.begin()
                 self.previous = point
             return
         dx = point[0] - self.previous[0]
         dy = point[1] - self.previous[1]
         motion = math.hypot(dx / SOURCE_RES_X, dy / SOURCE_RES_Y)
-        if motion < SIGNIFICANT_MOTION_MM and self.clock() - self.last_motion_t >= SCROLL_IDLE_TIMEOUT:
-            self.end_scroll_at(point)
+        if motion < SIGNIFICANT_MOTION_MM and now - self.last_motion_t >= SCROLL_IDLE_TIMEOUT:
+            self._end_scroll_at(point, now)
             return
         if dx or dy:
             self.pad.move_raw(dx, dy)
             self.previous = point
             if motion >= SIGNIFICANT_MOTION_MM:
-                self.last_motion_t = self.clock()
+                self.last_motion_t = now
 
-    def end_scroll_at(self, point):
+    def _end_scroll_at(self, point, now):
         self.pad.end()
         self.scrolling = False
         self.last_motion_t = None
         self.origin = self.previous = point
-        self.origin_t = self.clock()
+        self.origin_t = now
 
     def reset_contact(self):
         self.pad.end()
@@ -303,7 +300,7 @@ async def run():
                 elif event.type == e.EV_KEY and event.code in MOUSE_BUTTONS:
                     engine.handle_button(event.code, event.value)
                 elif event.type == e.EV_SYN and event.code == e.SYN_REPORT:
-                    engine.frame()
+                    engine.frame(event.timestamp())
         except OSError:
             log.warning("device disappeared, will rediscover")
         finally:
