@@ -6,6 +6,7 @@ After=graphical-session.target
 ExecStart=%h/.local/bin/magicmouse-scroll-observer
 Restart=on-failure
 RestartSec=2
+Nice=-10
 MemorySwapMax=0
 
 [Install]
