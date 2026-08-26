@@ -5,10 +5,10 @@ The physical mouse is never grabbed. Hyprland continues to receive its
 pointer motion and buttons directly from hid-magicmouse; this process only
 observes multitouch coordinates and emits two-finger touchpad scroll gestures.
 
-Momentum is deliberately not synthesized here. Replaying the surface as a real
-multitouch touchpad means libinput reports finger-source scroll with a genuine
-touch-end, so GTK/Chromium/Qt apply their own kinetic scrolling -- the same code
-path that gives a laptop trackpad its fling.
+Momentum is synthesized here: when the finger lifts, the daemon emits
+rapidly decaying scroll moves so that Chrome sees continuous velocity and
+multiple quick swipes coalesce into one continuous gesture without the
+pad.begin() interrupting an active kinetic fling.
 
 One finger scrolls. Two or more are left alone for magic-mouse-gestures, which
 watches the same surface over hidraw and maps horizontal swipes to Alt+Left and
@@ -17,8 +17,12 @@ on the one motion.
 """
 
 import asyncio
+import collections
 import logging
 import math
+import os
+import signal
+import time
 
 from evdev import AbsInfo, InputDevice, UInput, ecodes as e, list_devices
 
@@ -42,13 +46,20 @@ SCROLL_START_MM = 0.7
 SCROLL_START_WINDOW = 0.25
 SCROLL_IDLE_TIMEOUT = 0.12
 SIGNIFICANT_MOTION_MM = 0.05
+MAX_FRAME_MM = 3.0
+SPEED_CAP_MM = 3.5
+REVERSAL_MIN_MM = 0.4
+MOMENTUM_INTERVAL = 0.016
+MOMENTUM_DECAY = 3.0
+MOMENTUM_MIN_VEL = 0.05
 
 SOURCE_RES_X = 26.0
 SOURCE_RES_Y = 70.0
 
-# Match the Dell XPS 14 touchpad's measured geometry.
-PAD_MAX_X = 4723
-PAD_MAX_Y = 2298
+# Large virtual surface so the gesture never saturates at the edge.
+# Resolution matches the Dell XPS 14 touchpad so scroll speed is realistic.
+PAD_MAX_X = 200000
+PAD_MAX_Y = 200000
 PAD_RES_X = 32
 PAD_RES_Y = 31
 PAD_CENTER_X = PAD_MAX_X // 2
@@ -163,6 +174,65 @@ class VirtualTouchpad:
         self.active = False
 
 
+TRACE_CAPACITY = 6000  # ~30s at 200 Hz
+TRACE_DIR = os.path.join(
+    os.environ.get("XDG_RUNTIME_DIR", "/tmp"),
+    "magicmouse-scroll-traces",
+)
+TRACE_LATEST = os.path.join(
+    os.environ.get("XDG_RUNTIME_DIR", "/tmp"),
+    "magicmouse-scroll-trace.log",
+)
+ANOMALY_MOTION_MM = 5.0
+ANOMALY_COOLDOWN = 5.0
+trace_buf = collections.deque(maxlen=TRACE_CAPACITY)
+last_anomaly_dump = 0.0
+anomaly_dump_count = 0
+
+
+def dump_trace(reason="manual", signum=None, frame=None):
+    global anomaly_dump_count
+    anomaly_dump_count += 1
+    wall = time.strftime("%Y-%m-%d %H:%M:%S")
+    os.makedirs(TRACE_DIR, exist_ok=True)
+    numbered = os.path.join(TRACE_DIR, f"trace-{anomaly_dump_count:04d}.log")
+    try:
+        with open(numbered, "w") as f:
+            f.write(f"# dumped at {wall}  reason={reason}  ({len(trace_buf)} frames)\n")
+            f.write("# evt_t wall_t slot contacts scrolling buttons point prev dx dy motion action\n")
+            for line in trace_buf:
+                f.write(line)
+                f.write("\n")
+        try:
+            if os.path.islink(TRACE_LATEST) or os.path.exists(TRACE_LATEST):
+                os.unlink(TRACE_LATEST)
+            os.symlink(numbered, TRACE_LATEST)
+        except OSError:
+            pass
+        log.info("trace #%d dumped to %s  reason=%s (%d frames)",
+                 anomaly_dump_count, numbered, reason, len(trace_buf))
+    except OSError as exc:
+        log.warning("trace dump failed: %s", exc)
+
+
+def _handle_sigusr1(signum, frame):
+    dump_trace(reason="SIGUSR1")
+
+
+signal.signal(signal.SIGUSR1, _handle_sigusr1)
+
+
+def check_anomaly(motion_mm):
+    global last_anomaly_dump
+    if motion_mm < ANOMALY_MOTION_MM:
+        return
+    now = time.monotonic()
+    if now - last_anomaly_dump < ANOMALY_COOLDOWN:
+        return
+    last_anomaly_dump = now
+    dump_trace(reason=f"anomaly:motion={motion_mm:.1f}mm")
+
+
 class ScrollEngine:
     def __init__(self, pad):
         self.pad = pad
@@ -175,6 +245,53 @@ class ScrollEngine:
         self.scrolling = False
         self.last_motion_t = None
         self.buttons_down = set()
+        self.prev_dx = 0.0
+        self.prev_dy = 0.0
+        self._momentum_handle = None
+        self._momentum_vx = 0.0
+        self._momentum_vy = 0.0
+
+    def _cancel_momentum(self):
+        if self._momentum_handle is not None:
+            self._momentum_handle.cancel()
+            self._momentum_handle = None
+
+    def on_focus_change(self):
+        if self._momentum_handle is not None:
+            self._end_gesture()
+
+    def _start_momentum(self):
+        self._cancel_momentum()
+        self._momentum_vx = self.prev_dx
+        self._momentum_vy = self.prev_dy
+        self._emit_momentum()
+
+    def _emit_momentum(self):
+        self._momentum_handle = None
+        decay = math.exp(-MOMENTUM_DECAY * MOMENTUM_INTERVAL)
+        self._momentum_vx *= decay
+        self._momentum_vy *= decay
+        vel = math.hypot(self._momentum_vx / SOURCE_RES_X,
+                         self._momentum_vy / SOURCE_RES_Y)
+        if vel < MOMENTUM_MIN_VEL or not self.scrolling:
+            self._end_gesture()
+            return
+        self.pad.move_raw(self._momentum_vx, self._momentum_vy)
+        loop = asyncio.get_running_loop()
+        self._momentum_handle = loop.call_later(
+            MOMENTUM_INTERVAL, self._emit_momentum)
+
+    def _end_gesture(self):
+        self._cancel_momentum()
+        self.pad.end()
+        self.contact_slot = None
+        self.origin = None
+        self.previous = None
+        self.origin_t = None
+        self.scrolling = False
+        self.last_motion_t = None
+        self.prev_dx = 0.0
+        self.prev_dy = 0.0
 
     def handle_abs(self, code, value):
         if code == e.ABS_MT_SLOT:
@@ -192,11 +309,11 @@ class ScrollEngine:
     def handle_button(self, code, value):
         if value:
             self.buttons_down.add(code)
-            self.reset_contact()
+            self._end_gesture()
         else:
             self.buttons_down.discard(code)
             if not self.buttons_down:
-                self.reset_contact()
+                self._end_gesture()
 
     def contacts(self):
         return [
@@ -208,25 +325,52 @@ class ScrollEngine:
     def primary(self):
         return min(self.contacts(), default=(None, None))
 
+    def _trace(self, now, point, dx, dy, motion, action):
+        wall = time.monotonic()
+        prev = self.previous or (0, 0)
+        trace_buf.append(
+            f"{now:.6f} {wall:.4f} {self.contact_slot} "
+            f"{len(self.contacts())} {int(self.scrolling)} "
+            f"{len(self.buttons_down)} "
+            f"{point[0]},{point[1]} {prev[0]},{prev[1]} "
+            f"{dx:+.1f} {dy:+.1f} {motion:.3f} {action}"
+        )
+
     def frame(self, now):
         if self.buttons_down:
             return
-        if len(self.contacts()) > MAX_SCROLL_CONTACTS:
-            self.reset_contact()
+        nc = len(self.contacts())
+        if nc > MAX_SCROLL_CONTACTS:
+            self._trace(now, (0, 0), 0, 0, 0, f"reset:multi({nc})")
+            self._end_gesture()
             return
         slot, info = self.primary()
         if info is None:
-            self.reset_contact()
+            if self.scrolling and self._momentum_handle is None:
+                self._start_momentum()
+            elif not self.scrolling:
+                self._end_gesture()
             return
+        self._cancel_momentum()
         point = (info["x"], info["y"])
         if slot != self.contact_slot:
-            self.reset_contact()
+            if self.scrolling:
+                self._trace(now, point, 0, 0, 0, f"slot_carry:slot{slot}")
+                self.contact_slot = slot
+                self.previous = point
+                self.prev_dx = 0.0
+                self.prev_dy = 0.0
+                self.last_motion_t = now
+                return
+            self._trace(now, point, 0, 0, 0, f"new_contact:slot{slot}")
+            self._end_gesture()
             self.contact_slot = slot
             self.origin = self.previous = point
             self.origin_t = now
             return
         if not self.scrolling:
             if now - self.origin_t > SCROLL_START_WINDOW:
+                self._trace(now, point, 0, 0, 0, "origin_reset")
                 self.origin = self.previous = point
                 self.origin_t = now
                 return
@@ -235,6 +379,7 @@ class ScrollEngine:
                 (point[1] - self.origin[1]) / SOURCE_RES_Y,
             )
             if distance >= SCROLL_START_MM:
+                self._trace(now, point, 0, 0, distance, "scroll_begin")
                 self.scrolling = True
                 self.last_motion_t = now
                 self.pad.begin()
@@ -244,35 +389,68 @@ class ScrollEngine:
         dy = point[1] - self.previous[1]
         motion = math.hypot(dx / SOURCE_RES_X, dy / SOURCE_RES_Y)
         if motion < SIGNIFICANT_MOTION_MM and now - self.last_motion_t >= SCROLL_IDLE_TIMEOUT:
-            self._end_scroll_at(point, now)
+            self._trace(now, point, dx, dy, motion, "scroll_end:idle")
+            self._start_momentum()
+            return
+        if motion < SIGNIFICANT_MOTION_MM:
+            self.previous = point
             return
         if dx or dy:
-            self.pad.move_raw(dx, dy)
+            if motion > MAX_FRAME_MM:
+                check_anomaly(motion)
+            prev_motion = math.hypot(self.prev_dx / SOURCE_RES_X,
+                                     self.prev_dy / SOURCE_RES_Y)
+            if (motion >= REVERSAL_MIN_MM and prev_motion >= REVERSAL_MIN_MM
+                    and self.prev_dx * dx + self.prev_dy * dy < 0):
+                self._trace(now, point, dx, dy, motion, "reversal")
+                self.previous = point
+                self.last_motion_t = now
+                self.prev_dx = float(dx)
+                self.prev_dy = float(dy)
+                return
+            if motion > SPEED_CAP_MM:
+                scale = SPEED_CAP_MM / motion
+                edx = dx * scale
+                edy = dy * scale
+                self._trace(now, point, dx, dy, motion, f"cap:{motion:.2f}")
+                self.pad.move_raw(edx, edy)
+                self.prev_dx = edx
+                self.prev_dy = edy
+            else:
+                self._trace(now, point, dx, dy, motion, "move")
+                self.pad.move_raw(dx, dy)
+                self.prev_dx = float(dx)
+                self.prev_dy = float(dy)
             self.previous = point
             if motion >= SIGNIFICANT_MOTION_MM:
                 self.last_motion_t = now
 
-    def _end_scroll_at(self, point, now):
-        self.pad.end()
-        self.scrolling = False
-        self.last_motion_t = None
-        self.origin = self.previous = point
-        self.origin_t = now
-
-    def reset_contact(self):
-        self.pad.end()
-        self.contact_slot = None
-        self.origin = None
-        self.previous = None
-        self.origin_t = None
-        self.scrolling = False
-        self.last_motion_t = None
-
     def reset(self):
-        self.reset_contact()
+        self._end_gesture()
         self.slots.clear()
         self.current_slot = 0
         self.buttons_down.clear()
+
+
+def _hypr_socket_path():
+    sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE", "")
+    xdg = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
+    return os.path.join(xdg, "hypr", sig, ".socket2.sock")
+
+
+async def watch_focus(engine):
+    path = _hypr_socket_path()
+    while True:
+        try:
+            reader, _ = await asyncio.open_unix_connection(path)
+            while True:
+                line = await reader.readline()
+                if not line:
+                    break
+                if line.startswith(b"activewindow>>"):
+                    engine.on_focus_change()
+        except (OSError, ConnectionError):
+            await asyncio.sleep(2)
 
 
 async def run():
@@ -284,10 +462,15 @@ async def run():
         log.info("observing %s without grabbing", source.path)
         touchpad_ui = make_touchpad()
         engine = ScrollEngine(VirtualTouchpad(touchpad_ui))
+        focus_task = asyncio.create_task(watch_focus(engine))
         dropping = False
         try:
             async for event in source.async_read_loop():
                 if event.type == e.EV_SYN and event.code == e.SYN_DROPPED:
+                    trace_buf.append(
+                        f"{event.timestamp():.6f} {time.monotonic():.4f} "
+                        f"- - - - - - +0 +0 0 SYN_DROPPED"
+                    )
                     dropping = True
                     engine.reset()
                     continue
@@ -304,6 +487,7 @@ async def run():
         except OSError:
             log.warning("device disappeared, will rediscover")
         finally:
+            focus_task.cancel()
             engine.reset()
             touchpad_ui.close()
             source.close()
