@@ -20,6 +20,8 @@ hl.config({
     -- Invert mouse scroll direction to match macOS "natural" scrolling.
     natural_scroll = true,
 
+    scroll_factor = 1.5,
+
     touchpad = {
       -- Invert touchpad scroll direction to match macOS "natural" scrolling.
       natural_scroll = true,
@@ -164,37 +166,15 @@ local function accel_profile(step, npoints)
   return string.format("custom %.3f %s", step, table.concat(points, " "))
 end
 
--- Only the pointer curve is set, not scroll_points: Magic Mouse surface
--- scrolling does not come through this device at all. It arrives on the
--- virtual touchpad below, which has its own acceleration.
---
 -- "dark-work-mouse" is the Magic Mouse's *Bluetooth alias*, lowercased and
 -- hyphenated. That alias is user-editable, and Hyprland device rules can only
 -- match on the name -- rename the mouse in Bluetooth settings and this rule
--- stops applying, silently. (magicmouse-scroll matches on the USB/BT vendor and
--- product IDs instead, for exactly this reason, but that option does not exist
--- here.) If the pointer feel ever reverts on its own, check the alias first:
+-- stops applying, silently. If the pointer feel ever reverts on its own,
+-- check the alias first:
 --   bluetoothctl devices | grep -i mouse
 hl.device({
   name = "dark-work-mouse",
   accel_profile = accel_profile(0.5, 64),
-})
-
--- The virtual touchpad that magicmouse-scroll emits Magic Mouse surface
--- scrolling through. Replaying the surface as a real multitouch touchpad is
--- what buys momentum: libinput then reports finger-source scroll with a true
--- touch-end, so GTK/Chromium/Qt apply their own kinetic fling. The kernel's
--- own wheel emulation (emulate_scroll_wheel) is off so the two do not stack.
---
--- It must have no click path. Omarchy enables touchpad tapping globally, and
--- this device's scroll gestures are a generated two-finger sequence that
--- tapping would turn into stray clicks. The physical mouse keeps providing
--- every button directly; nothing here recreates or delays a click.
-hl.device({
-  name = "magicmouse-scroll-touchpad",
-  tap_to_click = false,
-  tap_and_drag = false,
-  clickfinger_behavior = false,
 })
 
 -- App-specific touchpad scroll speeds.

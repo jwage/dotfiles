@@ -100,8 +100,6 @@ LINUX_LINKS=(
   "omarchy/plugins/jwage.clock/Panel.qml:$HOME/.config/omarchy/plugins/jwage.clock/Panel.qml"
   "omarchy/themes/traderspost/colors.toml:$HOME/.config/omarchy/themes/traderspost/colors.toml"
   "omarchy/themes/traderspost/backgrounds/traderspost.png:$HOME/.config/omarchy/themes/traderspost/backgrounds/traderspost.png"
-  "magicmouse-scroll/scroll_observer.py:$HOME/.local/bin/magicmouse-scroll-observer"
-  "magicmouse-scroll/magicmouse-scroll.service:$HOME/.config/systemd/user/magicmouse-scroll.service"
   "magic-mouse-gestures/magic_mouse_gestures.py:$HOME/.local/bin/magic-mouse-gestures"
   "magic-mouse-gestures/magic-mouse-gestures.service:$HOME/.config/systemd/user/magic-mouse-gestures.service"
   "bluetooth-hid-reconnect/reconnect.sh:$HOME/.local/bin/bluetooth-hid-reconnect"
