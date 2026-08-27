@@ -3,6 +3,13 @@
     "editor.fontSize": 16,
     "workbench.iconTheme": null,
     "workbench.colorCustomizations": {
+        "editor.inactiveSelectionBackground": "#0984e3aa",
+        "editor.selectionBackground": "#0984e3",
+        "editor.selectionForeground": "#ffffff",
+        "editor.selectionHighlightBackground": "#0984e366",
+        "editor.selectionHighlightBorder": "#34c3ff",
+        "selection.background": "#0984e3aa",
+        "terminal.selectionBackground": "#0984e3",
         "[Sunburst]": {
             "activityBar.activeBorder": "#0984e3",
             "activityBar.background": "#0e141a",
@@ -20,6 +27,11 @@
             "dropdown.background": "#233644",
             "dropdown.foreground": "#f3f6f8",
             "editorGroupHeader.tabsBackground": "#0e141a",
+            "editor.inactiveSelectionBackground": "#0984e3aa",
+            "editor.selectionBackground": "#0984e3",
+            "editor.selectionForeground": "#ffffff",
+            "editor.selectionHighlightBackground": "#0984e366",
+            "editor.selectionHighlightBorder": "#34c3ff",
             "editorWidget.background": "#151f27",
             "editorWidget.border": "#405263",
             "focusBorder": "#0984e3",
@@ -40,7 +52,7 @@
             "peekViewResult.background": "#0e141a",
             "scrollbarSlider.background": "#40526380",
             "scrollbarSlider.hoverBackground": "#64768580",
-            "selection.background": "#30404f80",
+            "selection.background": "#0984e3aa",
             "sideBar.background": "#151f27",
             "sideBar.border": "#405263",
             "sideBar.foreground": "#d8dee3",
@@ -76,7 +88,7 @@
             "terminal.ansiYellow": "#e8b339",
             "terminal.background": "#0e141a",
             "terminal.foreground": "#f3f6f8",
-            "terminal.selectionBackground": "#30404f",
+            "terminal.selectionBackground": "#0984e3",
             "terminalCursor.foreground": "#34c3ff",
             "titleBar.activeBackground": "#0e141a",
             "titleBar.activeForeground": "#f3f6f8",
@@ -147,7 +159,15 @@
     ],
     "claudeCode.preferredLocation": "panel",
     "workbench.editor.enablePreview": false,
+    "terminal.integrated.profiles.osx": {
+        "zsh": {
+            "path": "/bin/zsh"
+        }
+    },
     "terminal.integrated.defaultProfile.osx": "zsh",
+    "terminal.integrated.automationProfile.osx": {
+        "path": "/bin/zsh"
+    },
     "terminal.integrated.defaultProfile.linux": "zsh",
     "editor.accessibilitySupport": "off",
     "accessibility.signalOptions.volume": 0,

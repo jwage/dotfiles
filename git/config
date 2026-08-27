@@ -25,6 +25,7 @@
 	verbose = true           # Include diff comment in commit message template
 [column]
 	ui = never
+	branch = never           # List branches one per line
 [branch]
 	sort = -committerdate    # Sort branches by most recent commit first
 [tag]

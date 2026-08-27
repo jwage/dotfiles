@@ -125,6 +125,57 @@ if [[ "$OS" == "Darwin" ]]; then
     echo "skip    macOS desktop wallpaper (osascript failed -- pick $MAC_WALLPAPER in System Settings)" >&2
   fi
   bash "$REPO_DIR/mac/apply-theme.sh"
+
+  # TradersPost New Relic menu bar health monitor. Lives in its own private
+  # repo so the rest of the team can use it too.
+  MENUBAR_REPO="$HOME/Repositories/newrelic-osx-menubar"
+  if [[ -d "$MENUBAR_REPO/.git" ]]; then
+    (cd "$MENUBAR_REPO" && git pull --ff-only 2>&1 | tail -1)
+  else
+    git clone git@github.com:TradersPost/newrelic-osx-menubar.git "$MENUBAR_REPO" 2>&1 | tail -1
+  fi
+  if [[ -f "$MENUBAR_REPO/Package.swift" ]]; then
+    mkdir -p "$HOME/.local/bin"
+    ln -sf "$MENUBAR_REPO/traderspost-health" "$HOME/.local/bin/traderspost-health"
+    echo "build   New Relic menu bar app"
+    if (cd "$MENUBAR_REPO" && swift build -c release 2>&1 | tail -1); then
+      APP_DIR="$HOME/Applications/TradersPostMenuBar.app"
+      mkdir -p "$APP_DIR/Contents/MacOS"
+      cp "$MENUBAR_REPO/.build/release/TradersPostMenuBar" \
+         "$APP_DIR/Contents/MacOS/TradersPostMenuBar"
+      cat > "$APP_DIR/Contents/Info.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleExecutable</key>
+  <string>TradersPostMenuBar</string>
+  <key>CFBundleIdentifier</key>
+  <string>io.traderspost.menubar</string>
+  <key>CFBundleName</key>
+  <string>TradersPost</string>
+  <key>LSUIElement</key>
+  <true/>
+</dict>
+</plist>
+PLIST
+      echo "built   $APP_DIR"
+      if osascript -e '
+        tell application "System Events"
+          if not (exists login item "TradersPostMenuBar") then
+            make login item at end with properties {path:"'"$APP_DIR"'", hidden:true}
+          end if
+        end tell' 2>/dev/null; then
+        echo "set     TradersPost menu bar as Login Item"
+      else
+        echo "skip    Login Item (add $APP_DIR in System Settings > General > Login Items)"
+      fi
+    else
+      echo "skip    New Relic menu bar app (swift build failed)" >&2
+    fi
+  else
+    echo "skip    New Relic menu bar app (clone failed — need access to TradersPost/newrelic-osx-menubar)" >&2
+  fi
 else
   for entry in "${LINUX_LINKS[@]}"; do
     link_one "$entry"
