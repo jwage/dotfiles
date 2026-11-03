@@ -22,8 +22,12 @@ system_php_modules() {
   env -u PHP_INI_SCAN_DIR php -m 2>/dev/null | tr '[:upper:]' '[:lower:]'
 }
 
+# Capture php -m first: `php -m | grep -q` makes grep exit on its first match,
+# php then dies of SIGPIPE and `set -o pipefail` reports the pipeline as failed.
 php_has_system() {
-  system_php_modules | grep -qx "$1"
+  local modules
+  modules="$(system_php_modules)"
+  grep -qx "$1" <<<"${modules}"
 }
 
 elevate() {
@@ -49,7 +53,7 @@ install_pie() {
 install_pg_query() {
   install_pie
   mkdir -p "${HOME}/.local/lib/php"
-  if [[ -f "${PG_QUERY_SO}" ]] && env -u PHP_INI_SCAN_DIR php -m 2>/dev/null | grep -qi '^pg_query$'; then
+  if [[ -f "${PG_QUERY_SO}" ]] && grep -qi '^pg_query$' <<<"$(env -u PHP_INI_SCAN_DIR php -m 2>/dev/null)"; then
     log "ok      pg_query already loaded by system php.ini"
   fi
   if [[ ! -f "${PG_QUERY_SO}" ]]; then
@@ -60,7 +64,13 @@ install_pg_query() {
       --skip-enable-extension --no-system-dependencies-check \
       || true
     local built
-    built="$(find "${HOME}/.config/pie" -name 'pg_query.so' -type f 2>/dev/null | head -n 1 || true)"
+    built="$(find "${HOME}/.config/pie" "${HOME}/.pie" -name 'pg_query.so' -type f 2>/dev/null | head -n 1 || true)"
+    if [[ -z "${built}" ]]; then
+      # Newer PIE installs straight into PHP's extension_dir.
+      local ext_dir
+      ext_dir="$(env -u PHP_INI_SCAN_DIR php -r 'echo ini_get("extension_dir");')"
+      [[ -f "${ext_dir}/pg_query.so" ]] && built="${ext_dir}/pg_query.so"
+    fi
     if [[ -z "${built}" ]]; then
       die "PIE did not produce pg_query.so (install build deps and re-run)"
     fi
@@ -96,8 +106,10 @@ verify() {
   log ""
   log "php     $(command -v php) $(php -r 'echo PHP_VERSION;')"
   log "ini     PHP_INI_SCAN_DIR=${PHP_INI_SCAN_DIR}"
+  local modules
+  modules="$(php -m 2>/dev/null)"
   for mod in "${REQUIRED_MODULES[@]}"; do
-    if php -m 2>/dev/null | grep -qi "^${mod}$"; then
+    if grep -qi "^${mod}$" <<<"${modules}"; then
       log "ok      ext-${mod}"
     else
       log "MISSING ext-${mod}"
@@ -131,11 +143,19 @@ pecl_install_if_missing() {
 }
 
 setup_macos() {
+  # Apple Silicon: use the native Homebrew (/opt/homebrew), not an Intel one in
+  # /usr/local that may be earlier on PATH; its php runs under Rosetta.
+  if [[ -x /opt/homebrew/bin/brew ]]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+  fi
   command -v brew >/dev/null 2>&1 || die "Homebrew not found"
   log "Installing Homebrew php"
   brew install php protobuf-c pkg-config autoconf automake libtool
   local php_ver
   php_ver="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
+  if [[ "$(uname -m)" == "arm64" ]] && file -L "$(command -v php)" | grep -q x86_64; then
+    log "warn    $(command -v php) is an x86_64 build running under Rosetta; put /opt/homebrew/bin before /usr/local/bin on PATH"
+  fi
   if [[ "${php_ver}" != "8.5" ]]; then
     log "warn    php ${php_ver} on PATH; TradersPost wants ~8.5.0 (brew install php@8.5 and put it first on PATH)"
   fi
@@ -148,8 +168,9 @@ setup_macos() {
   else
     command -v pecl >/dev/null 2>&1 || die "pecl not found"
     log "pecl    install redis"
-    # igbinary / lzf / zstd / msgpack prompts
-    printf 'yes\nyes\nyes\nyes\n' | pecl install -f redis
+    # Answer the build prompts by name, not by position: msgpack is not installed
+    # (configure fails with "Cannot find php_msgpack.h" if it is answered yes).
+    pecl install -f -D 'enable-redis-igbinary="yes" enable-redis-lzf="yes" enable-redis-zstd="yes" enable-redis-msgpack="no" enable-redis-lz4="no"' redis </dev/null
   fi
   install_pg_query
 }

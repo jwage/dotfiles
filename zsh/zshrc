@@ -10,6 +10,13 @@
 # that took effect, and is a no-op on macOS where the socket never exists).
 [[ -z "$SSH_AUTH_SOCK" && -S "$XDG_RUNTIME_DIR/ssh-agent.socket" ]] && export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent.socket"
 
+# Apple Silicon: Homebrew lives in /opt/homebrew. A stray Intel Homebrew in
+# /usr/local would otherwise win (it is on the default PATH and its php runs
+# under Rosetta, ~2x slower to start). shellenv puts /opt/homebrew/bin first;
+# shell/env.sh below then puts ~/.local/bin ahead of it, so the Docker shims
+# keep their place. No-op on Linux and on Intel Macs.
+[[ -x /opt/homebrew/bin/brew ]] && eval "$(/opt/homebrew/bin/brew shellenv)"
+
 DOTFILES="$(cd "$(dirname "$(realpath "$HOME/.zshrc")")/.." && pwd)"
 # shellcheck source=../shell/env.sh
 source "$DOTFILES/shell/env.sh"
